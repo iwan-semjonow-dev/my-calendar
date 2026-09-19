@@ -1,0 +1,8 @@
+.agents/
+backups/
+local-archive/
+my-calendar-backup-*.json
+*.backup
+*.bak
+.DS_Store
+Thumbs.db
