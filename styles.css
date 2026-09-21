@@ -39,8 +39,42 @@ h1 {
 }
 
 .calendar-panel {
-  min-height: clamp(256px, 55vh, 576px);
-  border: 1px solid #dde2e8;
+  overflow: hidden;
+  padding-bottom: 19px;
+  border: 1px solid #e7e9ee;
   border-radius: 8px;
   background: #fff;
+}
+
+.calendar-scroll {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.year-columns {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(100px, 1fr));
+  min-width: 1201px;
+  min-height: clamp(256px, 55vh, 576px);
+  border-left: 1px solid #cfd5df;
+  color: #161b27;
+  font-family: "Segoe UI", Arial, sans-serif;
+}
+
+.month-column {
+  min-width: 0;
+  border-right: 1px solid #cfd5df;
+}
+
+.month-name {
+  display: grid;
+  place-items: center;
+  height: 36px;
+  margin: 0;
+  border-bottom: 1px solid #cfd5df;
+  background: #f5f7fa;
+  font-size: 11px;
+  font-weight: 650;
+  text-align: center;
+  text-transform: uppercase;
 }
