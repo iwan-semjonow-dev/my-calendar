@@ -1,0 +1,46 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  color: #26313f;
+  background: #f5f6f8;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  line-height: 1.5;
+}
+
+.app {
+  width: 100%;
+  padding: 0 clamp(16px, 3vw, 32px) 32px;
+}
+
+.app-header {
+  padding: 20px 0;
+  border-bottom: 1px solid #dde2e8;
+}
+
+.app-name {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+main {
+  padding-top: 24px;
+}
+
+h1 {
+  margin: 0 0 16px;
+  font-size: clamp(20px, 2vw, 26px);
+  font-weight: 600;
+}
+
+.calendar-panel {
+  min-height: clamp(256px, 55vh, 576px);
+  border: 1px solid #dde2e8;
+  border-radius: 8px;
+  background: #fff;
+}
