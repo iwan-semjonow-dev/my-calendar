@@ -61,5 +61,54 @@
         </section>
       </main>
     </div>
+    <div class="day-backdrop" id="yearly-event-dialog" role="dialog" aria-modal="true" aria-labelledby="yearly-event-title" aria-describedby="yearly-event-help" hidden>
+      <section class="day-dialog">
+        <header class="day-dialog-header">
+          <h2 id="yearly-event-title">Новое событие</h2>
+          <button class="settings-close" type="button" data-close-dialog aria-label="Закрыть форму">
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 6 18 18M18 6 6 18" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="2.2" /></svg>
+          </button>
+        </header>
+        <p class="day-dialog-help" id="yearly-event-help">Событие хранится только до перезагрузки страницы.</p>
+        <form class="yearly-form" id="yearly-event-form">
+          <p class="yearly-fixed-date" id="yearly-event-date"></p>
+          <label class="yearly-field" for="yearly-event-name">Название
+            <input id="yearly-event-name" name="title" type="text" required maxlength="60" />
+          </label>
+          <label class="yearly-field" for="yearly-event-colour">Цвет
+            <select id="yearly-event-colour" name="colour">
+              <option value="study">Синий</option>
+              <option value="work">Зелёный</option>
+              <option value="project">Жёлтый</option>
+              <option value="personal">Розовый</option>
+              <option value="finance">Бирюзовый</option>
+            </select>
+          </label>
+          <label class="yearly-field" for="yearly-event-description">Описание
+            <textarea id="yearly-event-description" name="description" maxlength="240" placeholder="Необязательно"></textarea>
+          </label>
+          <footer class="day-dialog-footer">
+            <button class="day-secondary" type="button" data-close-dialog>Отмена</button>
+            <button class="day-primary" type="submit">Создать событие</button>
+          </footer>
+        </form>
+      </section>
+    </div>
+    <div class="day-backdrop" id="event-card-dialog" role="dialog" aria-modal="true" aria-labelledby="event-card-title" hidden>
+      <section class="day-dialog event-card-dialog">
+        <header class="day-dialog-header">
+          <h2 id="event-card-title">Событие</h2>
+          <button class="settings-close" type="button" data-close-dialog aria-label="Закрыть карточку события">
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 6 18 18M18 6 6 18" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="2.2" /></svg>
+          </button>
+        </header>
+        <p class="day-dialog-help" id="event-card-date"></p>
+        <dl class="event-card-details">
+          <div class="event-card-detail"><dt>Календарь</dt><dd>Годовой</dd></div>
+          <div class="event-card-detail"><dt>Цвет</dt><dd id="event-card-colour"></dd></div>
+          <div class="event-card-detail"><dt>Описание</dt><dd id="event-card-description"></dd></div>
+        </dl>
+      </section>
+    </div>
   </body>
 </html>

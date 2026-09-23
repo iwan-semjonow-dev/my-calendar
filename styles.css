@@ -146,3 +146,111 @@ h1 {
   color: #fff;
   background: #e11e1a;
 }
+
+.cell-button {
+  display: flex;
+  min-width: 0;
+  height: 100%;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 0;
+  background: #fff;
+  font: inherit;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.cell-button:hover,
+.cell-button:focus-visible {
+  outline: 1px solid #6f8df0;
+  outline-offset: -1px;
+}
+
+.empty-event { color: #8a93a0; }
+.empty-event:hover { background: #eef3ff; }
+.empty-event::after { content: "＋"; font-size: 13px; font-weight: 500; opacity: 0.38; }
+.event { justify-content: flex-start; color: #313946; font-size: 9px; font-weight: 600; }
+.event-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.event.study { background: #d7e2fe; }
+.event.work { background: #d6ead3; }
+.event.project { background: #fae6b7; }
+.event.personal { background: #f9d2d0; }
+.event.finance { background: #cceeed; }
+
+.day-backdrop[hidden] { display: none; }
+.day-backdrop {
+  position: fixed;
+  z-index: 42;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(18, 28, 43, 0.34);
+  backdrop-filter: blur(5px);
+}
+
+.day-dialog {
+  width: min(460px, calc(100vw - 40px));
+  max-height: calc(100dvh - 40px);
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 20px;
+  color: #202938;
+  border: 1px solid #d9e0e8;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 24px 64px rgba(22, 35, 55, 0.25);
+  font-family: "Segoe UI", Arial, sans-serif;
+}
+
+.day-dialog-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.day-dialog-header h2 { min-width: 0; margin: 0; overflow-wrap: anywhere; font-size: 17px; letter-spacing: -0.025em; }
+.day-dialog-help { margin: 7px 0 0; color: #6f7a8a; font-size: 12px; line-height: 1.45; }
+.settings-close {
+  display: flex;
+  flex: 0 0 32px;
+  width: 32px;
+  height: 32px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  color: #596577;
+  border: 1px solid #dce2ea;
+  border-radius: 8px;
+  background: #fff;
+  cursor: pointer;
+}
+.settings-close:hover { background: #f4f6f9; }
+.settings-close svg { display: block; width: 16px; height: 16px; flex: 0 0 16px; }
+.yearly-form { display: grid; gap: 14px; margin-top: 18px; }
+.yearly-field { display: grid; gap: 6px; color: #435065; font-size: 12px; font-weight: 600; }
+.yearly-field input,
+.yearly-field textarea,
+.yearly-field select {
+  width: 100%;
+  min-width: 0;
+  color: #263243;
+  border: 1px solid #d7dee8;
+  border-radius: 8px;
+  background: #fff;
+  font: inherit;
+  font-size: 12px;
+}
+.yearly-field input,
+.yearly-field select { min-height: 38px; padding: 0 10px; }
+.yearly-field textarea { min-height: 88px; padding: 10px; resize: vertical; }
+.yearly-fixed-date { margin: 0; padding: 10px 11px; color: #4c5b70; border: 1px solid #dfe6f3; border-radius: 8px; background: #f5f8ff; font-size: 12px; line-height: 1.4; }
+.day-dialog-footer { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 9px; margin-top: 20px; }
+.day-secondary,
+.day-primary { min-height: 36px; padding: 0 14px; border-radius: 8px; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
+.day-secondary { color: #465365; border: 1px solid #d7dee8; background: #fff; }
+.day-primary { color: #fff; border: 1px solid #18223a; background: #18223a; }
+.event-card-dialog { width: min(500px, calc(100vw - 40px)); }
+.event-card-details { display: grid; margin: 18px 0 0; overflow: hidden; border: 1px solid #e1e6ed; border-radius: 9px; }
+.event-card-detail { display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 12px; padding: 10px 12px; border-bottom: 1px solid #edf0f4; font-size: 12px; line-height: 1.4; }
+.event-card-detail:last-child { border-bottom: 0; }
+.event-card-detail dt { color: #758094; }
+.event-card-detail dd { margin: 0; color: #293445; font-weight: 620; overflow-wrap: anywhere; white-space: pre-wrap; }
