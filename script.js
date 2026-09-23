@@ -1,4 +1,6 @@
-const currentYear = new Date().getFullYear();
+const today = new Date();
+today.setHours(0, 0, 0, 0);
+const currentYear = today.getFullYear();
 const weekDays = ["ПН", "ВТ", "СР", "ЧТ", "ПТ", "СБ", "ВС"];
 
 function getDaysInMonth(year, monthIndex) {
@@ -10,9 +12,24 @@ function getWeekday(year, monthIndex, day) {
   return weekDays[(date.getDay() + 6) % 7];
 }
 
+function applyDayState(row, date) {
+  const weekday = date.getDay();
+  if (weekday === 0 || weekday === 6) {
+    row.classList.add("weekend");
+  }
+
+  if (date.getTime() === today.getTime()) {
+    row.classList.add("today");
+    row.setAttribute("aria-current", "date");
+  } else if (date < today) {
+    row.classList.add("past");
+  }
+}
+
 function createDayRow(year, monthIndex, day) {
   const row = document.createElement("div");
   row.className = "calendar-cell";
+  applyDayState(row, new Date(year, monthIndex, day));
 
   const line = document.createElement("div");
   line.className = "day-line";

@@ -128,3 +128,21 @@ h1 {
   display: block;
   transform: translate(-1px, 2px);
 }
+
+.weekend .date-number,
+.weekend .cell-weekday {
+  color: #e53935;
+}
+
+.past {
+  opacity: 0.42;
+}
+
+.today {
+  opacity: 1;
+}
+
+.today .date-number {
+  color: #fff;
+  background: #e11e1a;
+}
