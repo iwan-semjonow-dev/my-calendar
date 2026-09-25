@@ -61,6 +61,22 @@
         </section>
       </main>
     </div>
+    <div class="day-backdrop" id="day-events-dialog" role="dialog" aria-modal="true" aria-labelledby="day-events-title" hidden>
+      <section class="day-dialog">
+        <header class="day-dialog-header">
+          <h2 id="day-events-title">События дня</h2>
+          <button class="settings-close" type="button" data-close-dialog aria-label="Закрыть список событий">
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 6 18 18M18 6 6 18" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="2.2" /></svg>
+          </button>
+        </header>
+        <p class="day-dialog-help" id="day-events-date"></p>
+        <div class="day-event-list" id="day-event-list"></div>
+        <footer class="day-dialog-footer">
+          <button class="day-secondary" type="button" data-close-dialog>Готово</button>
+          <button class="day-primary" type="button" id="create-event-from-list">＋ Создать событие</button>
+        </footer>
+      </section>
+    </div>
     <div class="day-backdrop" id="yearly-event-dialog" role="dialog" aria-modal="true" aria-labelledby="yearly-event-title" aria-describedby="yearly-event-help" hidden>
       <section class="day-dialog">
         <header class="day-dialog-header">
@@ -88,6 +104,7 @@
             <textarea id="yearly-event-description" name="description" maxlength="240" placeholder="Необязательно"></textarea>
           </label>
           <footer class="day-dialog-footer">
+            <button class="day-secondary" type="button" data-back-to-list hidden>← К списку</button>
             <button class="day-secondary" type="button" data-close-dialog>Отмена</button>
             <button class="day-primary" type="submit">Создать событие</button>
           </footer>
@@ -97,7 +114,10 @@
     <div class="day-backdrop" id="event-card-dialog" role="dialog" aria-modal="true" aria-labelledby="event-card-title" hidden>
       <section class="day-dialog event-card-dialog">
         <header class="day-dialog-header">
-          <h2 id="event-card-title">Событие</h2>
+          <div class="event-card-heading">
+            <button class="event-card-back" type="button" data-back-to-list hidden>← К списку</button>
+            <h2 id="event-card-title">Событие</h2>
+          </div>
           <button class="settings-close" type="button" data-close-dialog aria-label="Закрыть карточку события">
             <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 6 18 18M18 6 6 18" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="2.2" /></svg>
           </button>

@@ -18,11 +18,15 @@ const calendar = document.querySelector(".year-columns");
 const app = document.querySelector(".app");
 const creationDialog = document.querySelector("#yearly-event-dialog");
 const cardDialog = document.querySelector("#event-card-dialog");
+const listDialog = document.querySelector("#day-events-dialog");
+const dayEventList = document.querySelector("#day-event-list");
+const createFromList = document.querySelector("#create-event-from-list");
 const eventForm = document.querySelector("#yearly-event-form");
 const nameInput = document.querySelector("#yearly-event-name");
 let activeDialog = null;
 let dialogOpener = null;
 let creationDate = null;
+let listDate = null;
 
 function getDateKey(year, monthIndex, day) {
   return `${year}-${String(monthIndex + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
@@ -34,17 +38,31 @@ function formatDate(key) {
 }
 
 function updateEventButton(button, key) {
-  const event = events[key];
+  const dayEvents = events[key] || [];
+  const event = dayEvents[0];
+  const hiddenCount = dayEvents.length - 1;
   button.className = event ? `cell-button event ${event.colour}` : "cell-button empty-event";
+  button.classList.toggle("has-more", hiddenCount > 0);
   button.replaceChildren();
   button.setAttribute("aria-label", event
-    ? `Открыть событие «${event.title}», ${formatDate(key)}`
+    ? (hiddenCount > 0
+      ? `События дня: ${dayEvents.length}, ${formatDate(key)}`
+      : `Открыть событие «${event.title}», ${formatDate(key)}`)
     : `Создать событие, ${formatDate(key)}`);
   if (event) {
     const label = document.createElement("span");
     label.className = "event-label";
     label.textContent = event.title;
     button.append(label);
+    if (hiddenCount > 0) {
+      const corner = document.createElement("span");
+      corner.className = "more-corner";
+      corner.setAttribute("aria-hidden", "true");
+      const count = document.createElement("span");
+      count.textContent = `+${hiddenCount}`;
+      corner.append(count);
+      button.append(corner);
+    }
   }
 }
 
@@ -52,6 +70,7 @@ function createEventButton(year, monthIndex, day) {
   const button = document.createElement("button");
   button.type = "button";
   button.dataset.date = getDateKey(year, monthIndex, day);
+  button.dataset.action = "open-day";
   updateEventButton(button, button.dataset.date);
   return button;
 }
@@ -91,8 +110,12 @@ function createDayRow(year, monthIndex, day) {
   number.className = "date-number";
   number.textContent = day;
 
-  const weekday = document.createElement("span");
+  const weekday = document.createElement("button");
+  weekday.type = "button";
   weekday.className = "cell-weekday";
+  weekday.dataset.date = getDateKey(year, monthIndex, day);
+  weekday.dataset.action = "create-event";
+  weekday.setAttribute("aria-label", `Создать ещё одно событие, ${formatDate(weekday.dataset.date)}`);
   const label = document.createElement("span");
   label.className = "weekday-label";
   label.textContent = getWeekday(year, monthIndex, day);
@@ -133,8 +156,9 @@ function renderCalendar(year) {
 }
 
 function openDialog(dialog, opener, focusTarget) {
+  if (activeDialog) activeDialog.hidden = true;
+  else dialogOpener = opener;
   activeDialog = dialog;
-  dialogOpener = opener;
   app.inert = true;
   dialog.hidden = false;
   focusTarget.focus({ preventScroll: true });
@@ -148,24 +172,54 @@ function closeDialog() {
   activeDialog = null;
   dialogOpener = null;
   creationDate = null;
+  listDate = null;
 }
 
-function openCreationForm(button) {
-  creationDate = button.dataset.date;
+function openCreationForm(key, opener = null, fromList = false) {
+  creationDate = key;
+  creationDialog.querySelector("[data-back-to-list]").hidden = !fromList;
   eventForm.reset();
   nameInput.setCustomValidity("");
   document.querySelector("#yearly-event-date").textContent = `Дата: ${formatDate(creationDate)}`;
-  openDialog(creationDialog, button, nameInput);
+  openDialog(creationDialog, opener, nameInput);
 }
 
-function openEventCard(button) {
-  const key = button.dataset.date;
-  const event = events[key];
+function openEventCard(key, index, opener = null, fromList = false) {
+  const event = events[key][index];
+  cardDialog.querySelector("[data-back-to-list]").hidden = !fromList;
   document.querySelector("#event-card-title").textContent = event.title;
   document.querySelector("#event-card-date").textContent = formatDate(key);
   document.querySelector("#event-card-colour").textContent = colourNames[event.colour];
   document.querySelector("#event-card-description").textContent = event.description || "Без описания";
-  openDialog(cardDialog, button, cardDialog.querySelector("[data-close-dialog]"));
+  openDialog(cardDialog, opener, cardDialog.querySelector("[data-close-dialog]"));
+}
+
+function createListEvent(event, index) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "day-event-row";
+  button.dataset.eventIndex = index;
+  const dot = document.createElement("span");
+  dot.className = `day-event-dot ${event.colour}`;
+  dot.setAttribute("aria-hidden", "true");
+  const copy = document.createElement("span");
+  copy.className = "day-event-copy";
+  const name = document.createElement("span");
+  name.className = "day-event-name";
+  name.textContent = event.title;
+  const description = document.createElement("span");
+  description.className = "day-event-description";
+  description.textContent = event.description || "Без описания";
+  copy.append(name, description);
+  button.append(dot, copy);
+  return button;
+}
+
+function openDayEvents(key, opener = null) {
+  listDate = key;
+  document.querySelector("#day-events-date").textContent = formatDate(key);
+  dayEventList.replaceChildren(...(events[key] || []).map(createListEvent));
+  openDialog(listDialog, opener, dayEventList.querySelector("button") || createFromList);
 }
 
 function submitEvent(event) {
@@ -173,14 +227,16 @@ function submitEvent(event) {
   const title = nameInput.value.trim();
   nameInput.setCustomValidity(title ? "" : "Введите название события.");
   if (!eventForm.reportValidity()) return;
-  if (!creationDate || events[creationDate]) return;
+  if (!creationDate) return;
 
-  events[creationDate] = {
+  if (!events[creationDate]) events[creationDate] = [];
+  events[creationDate].push({
     title,
     colour: eventForm.elements.colour.value,
     description: eventForm.elements.description.value.trim(),
-  };
-  updateEventButton(dialogOpener, creationDate);
+  });
+  const button = calendar.querySelector(`[data-action="open-day"][data-date="${creationDate}"]`);
+  updateEventButton(button, creationDate);
   closeDialog();
 }
 
@@ -190,7 +246,8 @@ function handleDialogKeydown(event) {
     event.preventDefault();
     closeDialog();
   } else if (event.key === "Tab") {
-    const controls = activeDialog.querySelectorAll("button, input, select, textarea");
+    const controls = [...activeDialog.querySelectorAll("button, input, select, textarea")]
+      .filter((control) => !control.hidden && !control.disabled && control.getClientRects().length > 0);
     const first = controls[0];
     const last = controls[controls.length - 1];
     if (event.shiftKey && document.activeElement === first) {
@@ -206,13 +263,23 @@ function handleDialogKeydown(event) {
 calendar.addEventListener("click", (event) => {
   const button = event.target.closest("button[data-date]");
   if (!button || !calendar.contains(button)) return;
-  if (events[button.dataset.date]) openEventCard(button);
-  else openCreationForm(button);
+  const key = button.dataset.date;
+  const count = events[key]?.length || 0;
+  if (button.dataset.action === "create-event" || count === 0) openCreationForm(key, button);
+  else if (count === 1) openEventCard(key, 0, button);
+  else openDayEvents(key, button);
 });
 
-for (const dialog of [creationDialog, cardDialog]) {
+dayEventList.addEventListener("click", (event) => {
+  const button = event.target.closest("button[data-event-index]");
+  if (button) openEventCard(listDate, Number(button.dataset.eventIndex), null, true);
+});
+createFromList.addEventListener("click", () => openCreationForm(listDate, null, true));
+
+for (const dialog of [creationDialog, cardDialog, listDialog]) {
   dialog.addEventListener("click", (event) => {
     if (event.target === dialog || event.target.closest("[data-close-dialog]")) closeDialog();
+    else if (event.target.closest("[data-back-to-list]")) openDayEvents(listDate);
   });
 }
 document.addEventListener("keydown", handleDialogKeydown);
