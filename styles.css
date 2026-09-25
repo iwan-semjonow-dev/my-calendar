@@ -296,3 +296,14 @@ h1 {
 .day-event-copy { min-width: 0; }
 .day-event-name { display: block; overflow-wrap: anywhere; font-size: 12px; font-weight: 650; }
 .day-event-description { display: block; margin-top: 3px; overflow: hidden; color: #748092; font-size: 11px; line-height: 1.25; text-overflow: ellipsis; white-space: nowrap; }
+
+.event-card-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 17px; }
+.event-card-action { min-height: 38px; padding: 0 10px; color: #3d4a5d; border: 1px solid #d9e0e9; border-radius: 8px; background: #fff; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
+.event-card-action:hover { border-color: #aebfe9; background: #f6f8fd; }
+.event-card-action.danger { color: #b42f3f; border-color: #efc3c8; background: #fffafb; }
+.event-card-action.danger:hover { background: #fff0f1; }
+.event-card-notice { margin: 14px 0 0; padding: 10px 11px; color: #4a5a70; border: 1px solid #dce5f7; border-radius: 8px; background: #f3f6ff; font-size: 11px; line-height: 1.45; overflow-wrap: anywhere; }
+.event-card-confirm { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: 9px; }
+.event-card-actions[hidden],
+.event-card-notice[hidden],
+.event-card-confirm[hidden] { display: none; }

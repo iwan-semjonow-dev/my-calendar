@@ -23,10 +23,19 @@ const dayEventList = document.querySelector("#day-event-list");
 const createFromList = document.querySelector("#create-event-from-list");
 const eventForm = document.querySelector("#yearly-event-form");
 const nameInput = document.querySelector("#yearly-event-name");
+const editButton = document.querySelector("#edit-event");
+const deleteButton = document.querySelector("#delete-event");
+const cardActions = document.querySelector("#event-card-actions");
+const deleteNotice = document.querySelector("#event-delete-notice");
+const deleteConfirm = document.querySelector("#event-delete-confirm");
+const cancelDeleteButton = document.querySelector("#cancel-event-delete");
 let activeDialog = null;
 let dialogOpener = null;
 let creationDate = null;
 let listDate = null;
+let selectedEvent = null;
+let editingEvent = null;
+let pendingDeletion = null;
 
 function getDateKey(year, monthIndex, day) {
   return `${year}-${String(monthIndex + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
@@ -173,25 +182,101 @@ function closeDialog() {
   dialogOpener = null;
   creationDate = null;
   listDate = null;
+  selectedEvent = null;
+  editingEvent = null;
+  pendingDeletion = null;
+}
+
+function prepareEventForm(key, event = null) {
+  creationDate = key;
+  editingEvent = event;
+  eventForm.reset();
+  nameInput.setCustomValidity("");
+  document.querySelector("#yearly-event-title").textContent = event ? "Редактировать событие" : "Новое событие";
+  eventForm.querySelector("[type=submit]").textContent = event ? "Сохранить изменения" : "Создать событие";
+  if (event) {
+    nameInput.value = event.title;
+    eventForm.elements.colour.value = event.colour;
+    eventForm.elements.description.value = event.description;
+  }
+  document.querySelector("#yearly-event-date").textContent = `Дата: ${formatDate(creationDate)}`;
 }
 
 function openCreationForm(key, opener = null, fromList = false) {
-  creationDate = key;
+  prepareEventForm(key);
   creationDialog.querySelector("[data-back-to-list]").hidden = !fromList;
-  eventForm.reset();
-  nameInput.setCustomValidity("");
-  document.querySelector("#yearly-event-date").textContent = `Дата: ${formatDate(creationDate)}`;
   openDialog(creationDialog, opener, nameInput);
 }
 
 function openEventCard(key, index, opener = null, fromList = false) {
   const event = events[key][index];
+  selectedEvent = { key, event, fromList };
+  setDeleteConfirmation(false);
   cardDialog.querySelector("[data-back-to-list]").hidden = !fromList;
   document.querySelector("#event-card-title").textContent = event.title;
   document.querySelector("#event-card-date").textContent = formatDate(key);
   document.querySelector("#event-card-colour").textContent = colourNames[event.colour];
   document.querySelector("#event-card-description").textContent = event.description || "Без описания";
   openDialog(cardDialog, opener, cardDialog.querySelector("[data-close-dialog]"));
+}
+
+function openEventEditor() {
+  if (!selectedEvent) return;
+  prepareEventForm(selectedEvent.key, selectedEvent.event);
+  creationDialog.querySelector("[data-back-to-list]").hidden = true;
+  openDialog(creationDialog, null, nameInput);
+}
+
+function cancelEditing() {
+  const { key, event, fromList } = selectedEvent;
+  editingEvent = null;
+  creationDate = null;
+  openEventCard(key, events[key].indexOf(event), null, fromList);
+  editButton.focus({ preventScroll: true });
+}
+
+function setDeleteConfirmation(visible) {
+  pendingDeletion = visible ? selectedEvent : null;
+  cardActions.hidden = visible;
+  deleteNotice.hidden = !visible;
+  deleteConfirm.hidden = !visible;
+  cardDialog.querySelector("[data-back-to-list]").hidden = visible || !selectedEvent?.fromList;
+}
+
+function requestDeletion() {
+  if (!selectedEvent) return;
+  deleteNotice.textContent = `Удалить событие «${selectedEvent.event.title}»?`;
+  setDeleteConfirmation(true);
+  cancelDeleteButton.focus({ preventScroll: true });
+}
+
+function cancelDeletion() {
+  setDeleteConfirmation(false);
+  deleteButton.focus({ preventScroll: true });
+}
+
+function refreshDate(key) {
+  const button = calendar.querySelector(`[data-action="open-day"][data-date="${key}"]`);
+  updateEventButton(button, key);
+}
+
+function confirmDeletion() {
+  if (!pendingDeletion || activeDialog !== cardDialog) return;
+  const { key, event } = pendingDeletion;
+  setDeleteConfirmation(false);
+  const index = events[key]?.indexOf(event) ?? -1;
+  if (index < 0) return;
+  events[key].splice(index, 1);
+  if (events[key].length === 0) delete events[key];
+  refreshDate(key);
+  if (events[key]?.length) openDayEvents(key);
+  else closeDialog();
+}
+
+function dismissDialog() {
+  if (activeDialog === creationDialog && editingEvent) cancelEditing();
+  else if (activeDialog === cardDialog && pendingDeletion) cancelDeletion();
+  else closeDialog();
 }
 
 function createListEvent(event, index) {
@@ -216,6 +301,7 @@ function createListEvent(event, index) {
 }
 
 function openDayEvents(key, opener = null) {
+  selectedEvent = null;
   listDate = key;
   document.querySelector("#day-events-date").textContent = formatDate(key);
   dayEventList.replaceChildren(...(events[key] || []).map(createListEvent));
@@ -229,14 +315,19 @@ function submitEvent(event) {
   if (!eventForm.reportValidity()) return;
   if (!creationDate) return;
 
-  if (!events[creationDate]) events[creationDate] = [];
-  events[creationDate].push({
+  const changes = {
     title,
     colour: eventForm.elements.colour.value,
     description: eventForm.elements.description.value.trim(),
-  });
-  const button = calendar.querySelector(`[data-action="open-day"][data-date="${creationDate}"]`);
-  updateEventButton(button, creationDate);
+  };
+  if (editingEvent) {
+    if (!events[creationDate]?.includes(editingEvent)) return;
+    Object.assign(editingEvent, changes);
+  } else {
+    if (!events[creationDate]) events[creationDate] = [];
+    events[creationDate].push(changes);
+  }
+  refreshDate(creationDate);
   closeDialog();
 }
 
@@ -244,7 +335,7 @@ function handleDialogKeydown(event) {
   if (!activeDialog) return;
   if (event.key === "Escape") {
     event.preventDefault();
-    closeDialog();
+    dismissDialog();
   } else if (event.key === "Tab") {
     const controls = [...activeDialog.querySelectorAll("button, input, select, textarea")]
       .filter((control) => !control.hidden && !control.disabled && control.getClientRects().length > 0);
@@ -275,10 +366,14 @@ dayEventList.addEventListener("click", (event) => {
   if (button) openEventCard(listDate, Number(button.dataset.eventIndex), null, true);
 });
 createFromList.addEventListener("click", () => openCreationForm(listDate, null, true));
+editButton.addEventListener("click", openEventEditor);
+deleteButton.addEventListener("click", requestDeletion);
+cancelDeleteButton.addEventListener("click", cancelDeletion);
+document.querySelector("#confirm-event-delete").addEventListener("click", confirmDeletion);
 
 for (const dialog of [creationDialog, cardDialog, listDialog]) {
   dialog.addEventListener("click", (event) => {
-    if (event.target === dialog || event.target.closest("[data-close-dialog]")) closeDialog();
+    if (event.target === dialog || event.target.closest("[data-close-dialog]")) dismissDialog();
     else if (event.target.closest("[data-back-to-list]")) openDayEvents(listDate);
   });
 }

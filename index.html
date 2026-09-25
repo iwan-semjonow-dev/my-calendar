@@ -128,6 +128,15 @@
           <div class="event-card-detail"><dt>Цвет</dt><dd id="event-card-colour"></dd></div>
           <div class="event-card-detail"><dt>Описание</dt><dd id="event-card-description"></dd></div>
         </dl>
+        <div class="event-card-actions" id="event-card-actions">
+          <button class="event-card-action" type="button" id="edit-event">Редактировать</button>
+          <button class="event-card-action danger" type="button" id="delete-event">Удалить</button>
+        </div>
+        <p class="event-card-notice" id="event-delete-notice" role="status" hidden></p>
+        <div class="event-card-confirm" id="event-delete-confirm" hidden>
+          <button class="day-secondary" type="button" id="cancel-event-delete">Отмена</button>
+          <button class="day-primary" type="button" id="confirm-event-delete" aria-describedby="event-delete-notice">Удалить событие</button>
+        </div>
       </section>
     </div>
   </body>
