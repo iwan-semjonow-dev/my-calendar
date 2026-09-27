@@ -35,6 +35,20 @@ const filterList = document.querySelector("#year-filter-list");
 const filterSummary = document.querySelector("#filter-summary");
 const resetFiltersButton = document.querySelector("#reset-year-filters");
 const selectedEventFilters = new Set();
+const thoughtStorageKey = "my-calendar-year-thoughts-v3";
+const thoughtColours = ["", "yellow", "amber", "peach", "coral", "pink", "rose", "violet", "indigo", "blue", "sky", "mint", "teal", "green", "lime", "sand", "slate"];
+const thoughtDialog = document.querySelector("#thought-dialog");
+const thoughtForm = document.querySelector("#thought-form");
+const thoughtText = document.querySelector("#thought-text");
+const thoughtAddButton = document.querySelector("#add-thought");
+const thoughtScroll = document.querySelector("#thought-scroll");
+const thoughtTrack = document.querySelector("#thought-track");
+const thoughtLoadError = document.querySelector("#thought-load-error");
+const thoughtSaveError = document.querySelector("#thought-save-error");
+let thoughts = [];
+let thoughtStorageSnapshot = null;
+let thoughtStorageBlocked = false;
+let pendingThought = null;
 let activeDialog = null;
 let dialogOpener = null;
 let creationDate = null;
@@ -42,6 +56,85 @@ let listDate = null;
 let selectedEvent = null;
 let editingEvent = null;
 let pendingDeletion = null;
+
+function showThoughtError(element, message) {
+  element.textContent = message;
+  element.hidden = !message;
+}
+
+function parseThoughts(raw) {
+  if (raw === null) return [];
+  const items = JSON.parse(raw);
+  const ids = new Set();
+  if (!Array.isArray(items) || !items.every((item) => {
+    if (!item || typeof item.id !== "string" || !item.id.trim() || ids.has(item.id)
+      || typeof item.text !== "string" || !item.text.trim() || !thoughtColours.includes(item.colour)) return false;
+    ids.add(item.id);
+    return true;
+  })) throw new Error("Invalid thoughts data");
+  return items.map(({ id, text, colour }) => ({ id, text, colour }));
+}
+
+function loadThoughts() {
+  try {
+    thoughtStorageSnapshot = localStorage.getItem(thoughtStorageKey);
+    thoughts = parseThoughts(thoughtStorageSnapshot);
+  } catch {
+    thoughtStorageBlocked = true;
+    showThoughtError(thoughtLoadError, "Не удалось загрузить мысли: сохранённые данные повреждены или хранилище недоступно. Добавление заблокировано, чтобы не потерять сохранения. После восстановления данных или доступа перезагрузите страницу.");
+  }
+}
+
+function renderThoughts() {
+  thoughtTrack.replaceChildren(...thoughts.map((thought) => {
+    const card = document.createElement("article");
+    card.className = `thought ${thought.colour}`.trim();
+    card.dataset.thoughtId = thought.id;
+    card.textContent = thought.text;
+    return card;
+  }));
+  document.querySelector("#thought-empty").hidden = thoughts.length > 0 || thoughtStorageBlocked;
+}
+
+function openThoughtDialog() {
+  thoughtForm.reset();
+  thoughtText.setCustomValidity("");
+  pendingThought = null;
+  showThoughtError(thoughtSaveError, thoughtStorageBlocked ? thoughtLoadError.textContent : "");
+  openDialog(thoughtDialog, thoughtAddButton, thoughtText);
+}
+
+function submitThought(event) {
+  event.preventDefault();
+  if (activeDialog !== thoughtDialog) return;
+  const text = thoughtText.value.trim();
+  thoughtText.setCustomValidity(text ? "" : "Введите текст мысли.");
+  if (!thoughtForm.reportValidity()) return;
+  if (thoughtStorageBlocked) {
+    showThoughtError(thoughtSaveError, thoughtLoadError.textContent);
+    return;
+  }
+  try {
+    if (localStorage.getItem(thoughtStorageKey) !== thoughtStorageSnapshot) {
+      showThoughtError(thoughtSaveError, "Сохранённые мысли изменились после загрузки страницы. Скопируйте введённый текст и перезагрузите страницу, чтобы не затереть изменения.");
+      return;
+    }
+    if (!pendingThought) pendingThought = { id: `thought-${crypto.randomUUID()}`, text, colour: "yellow" };
+    pendingThought.text = text;
+    const nextThoughts = [...thoughts, pendingThought];
+    const serialized = JSON.stringify(nextThoughts);
+    localStorage.setItem(thoughtStorageKey, serialized);
+    thoughts = nextThoughts;
+    thoughtStorageSnapshot = serialized;
+  } catch {
+    showThoughtError(thoughtSaveError, "Не удалось сохранить мысль. Текст остался в форме. Проверьте доступ к хранилищу и свободное место, затем попробуйте сохранить ещё раз.");
+    return;
+  }
+  pendingThought = null;
+  renderThoughts();
+  closeDialog();
+  thoughtScroll.scrollTo({ left: thoughtScroll.scrollWidth, behavior: "instant" });
+}
 
 function getDateKey(year, monthIndex, day) {
   return `${year}-${String(monthIndex + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
@@ -453,7 +546,17 @@ resetFiltersButton.addEventListener("click", () => {
   (filterList.querySelector("input") || filtersDialog.querySelector(".filters-done")).focus();
 });
 
-for (const dialog of [creationDialog, cardDialog, listDialog, filtersDialog]) {
+thoughtAddButton.addEventListener("click", openThoughtDialog);
+thoughtText.addEventListener("input", () => thoughtText.setCustomValidity(""));
+thoughtForm.addEventListener("submit", submitThought);
+document.querySelectorAll("[data-thought-scroll]").forEach((button) => {
+  button.addEventListener("click", () => {
+    const direction = button.dataset.thoughtScroll === "right" ? 1 : -1;
+    thoughtScroll.scrollBy({ left: direction * 376, behavior: "smooth" });
+  });
+});
+
+for (const dialog of [creationDialog, cardDialog, listDialog, filtersDialog, thoughtDialog]) {
   dialog.addEventListener("click", (event) => {
     if (event.target === dialog || event.target.closest("[data-close-dialog]")) dismissDialog();
     else if (event.target.closest("[data-back-to-list]")) openDayEvents(listDate);
@@ -464,3 +567,5 @@ nameInput.addEventListener("input", () => nameInput.setCustomValidity(""));
 eventForm.addEventListener("submit", submitEvent);
 
 renderCalendar(currentYear);
+loadThoughts();
+renderThoughts();
