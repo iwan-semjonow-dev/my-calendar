@@ -29,6 +29,12 @@ const cardActions = document.querySelector("#event-card-actions");
 const deleteNotice = document.querySelector("#event-delete-notice");
 const deleteConfirm = document.querySelector("#event-delete-confirm");
 const cancelDeleteButton = document.querySelector("#cancel-event-delete");
+const filtersDialog = document.querySelector("#year-filters");
+const filtersButton = document.querySelector("#open-year-filters");
+const filterList = document.querySelector("#year-filter-list");
+const filterSummary = document.querySelector("#filter-summary");
+const resetFiltersButton = document.querySelector("#reset-year-filters");
+const selectedEventFilters = new Set();
 let activeDialog = null;
 let dialogOpener = null;
 let creationDate = null;
@@ -53,11 +59,7 @@ function updateEventButton(button, key) {
   button.className = event ? `cell-button event ${event.colour}` : "cell-button empty-event";
   button.classList.toggle("has-more", hiddenCount > 0);
   button.replaceChildren();
-  button.setAttribute("aria-label", event
-    ? (hiddenCount > 0
-      ? `События дня: ${dayEvents.length}, ${formatDate(key)}`
-      : `Открыть событие «${event.title}», ${formatDate(key)}`)
-    : `Создать событие, ${formatDate(key)}`);
+  updateEventFilter(button, key);
   if (event) {
     const label = document.createElement("span");
     label.className = "event-label";
@@ -73,6 +75,61 @@ function updateEventButton(button, key) {
       button.append(corner);
     }
   }
+}
+
+function updateEventFilter(button, key) {
+  const dayEvents = events[key] || [];
+  const matches = dayEvents.filter((event) => selectedEventFilters.has(event.title));
+  const label = dayEvents.length > 1
+    ? `События дня: ${dayEvents.length}, ${formatDate(key)}`
+    : (dayEvents.length === 1
+      ? `Открыть событие «${dayEvents[0].title}», ${formatDate(key)}`
+      : `Создать событие, ${formatDate(key)}`);
+  const matchSummary = selectedEventFilters.size && dayEvents.length
+    ? `; совпадений с фильтром: ${matches.length}${matches.length ? ` — ${[...new Set(matches.map((event) => event.title))].join(", ")}` : ""}`
+    : "";
+  button.setAttribute("aria-label", label + matchSummary);
+  button.classList.toggle("is-filtered", matches.length > 0);
+  button.closest(".calendar-cell")?.classList.toggle("filter-has-selected", matches.length > 0);
+}
+
+function updateYearFilters() {
+  const hasFilters = selectedEventFilters.size > 0;
+  calendar.classList.toggle("filter-active", hasFilters);
+  dayEventList.classList.toggle("filter-active", hasFilters);
+  filtersButton.classList.toggle("filter-active", hasFilters);
+  filtersButton.setAttribute("aria-label", hasFilters ? `Фильтры: выбрано ${selectedEventFilters.size}` : "Фильтры");
+  filterSummary.textContent = `Выбрано: ${selectedEventFilters.size}`;
+  resetFiltersButton.disabled = !hasFilters;
+  calendar.querySelectorAll('[data-action="open-day"]').forEach((button) => {
+    updateEventFilter(button, button.dataset.date);
+  });
+}
+
+function renderFilterOptions(titles) {
+  filterList.replaceChildren();
+  document.querySelector("#year-filters-empty").hidden = titles.size > 0;
+  for (const title of titles) {
+    const option = document.createElement("label");
+    option.className = "filter-option";
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.value = title;
+    checkbox.checked = selectedEventFilters.has(title);
+    const label = document.createElement("span");
+    label.textContent = title;
+    option.append(checkbox, label);
+    filterList.append(option);
+  }
+}
+
+function syncYearFilters() {
+  const titles = new Set(Object.values(events).flatMap((dayEvents) => dayEvents.map((event) => event.title)));
+  for (const title of selectedEventFilters) {
+    if (!titles.has(title)) selectedEventFilters.delete(title);
+  }
+  renderFilterOptions(titles);
+  updateYearFilters();
 }
 
 function createEventButton(year, monthIndex, day) {
@@ -175,6 +232,7 @@ function openDialog(dialog, opener, focusTarget) {
 
 function closeDialog() {
   if (!activeDialog) return;
+  if (activeDialog === filtersDialog) filtersButton.setAttribute("aria-expanded", "false");
   activeDialog.hidden = true;
   app.inert = false;
   dialogOpener.focus({ preventScroll: true });
@@ -258,6 +316,7 @@ function cancelDeletion() {
 function refreshDate(key) {
   const button = calendar.querySelector(`[data-action="open-day"][data-date="${key}"]`);
   updateEventButton(button, key);
+  syncYearFilters();
 }
 
 function confirmDeletion() {
@@ -283,6 +342,10 @@ function createListEvent(event, index) {
   const button = document.createElement("button");
   button.type = "button";
   button.className = "day-event-row";
+  if (selectedEventFilters.has(event.title)) {
+    button.classList.add("is-filtered");
+    button.setAttribute("aria-label", `${event.title}, ${event.description || "Без описания"}; совпадает с фильтром`);
+  }
   button.dataset.eventIndex = index;
   const dot = document.createElement("span");
   dot.className = `day-event-dot ${event.colour}`;
@@ -371,7 +434,26 @@ deleteButton.addEventListener("click", requestDeletion);
 cancelDeleteButton.addEventListener("click", cancelDeletion);
 document.querySelector("#confirm-event-delete").addEventListener("click", confirmDeletion);
 
-for (const dialog of [creationDialog, cardDialog, listDialog]) {
+filtersButton.addEventListener("click", () => {
+  syncYearFilters();
+  filtersButton.setAttribute("aria-expanded", "true");
+  openDialog(filtersDialog, filtersButton, filterList.querySelector("input") || filtersDialog.querySelector("[data-close-dialog]"));
+});
+filterList.addEventListener("change", (event) => {
+  const checkbox = event.target;
+  if (!checkbox.matches('input[type="checkbox"]')) return;
+  if (checkbox.checked) selectedEventFilters.add(checkbox.value);
+  else selectedEventFilters.delete(checkbox.value);
+  updateYearFilters();
+});
+resetFiltersButton.addEventListener("click", () => {
+  selectedEventFilters.clear();
+  filterList.querySelectorAll("input").forEach((checkbox) => { checkbox.checked = false; });
+  updateYearFilters();
+  (filterList.querySelector("input") || filtersDialog.querySelector(".filters-done")).focus();
+});
+
+for (const dialog of [creationDialog, cardDialog, listDialog, filtersDialog]) {
   dialog.addEventListener("click", (event) => {
     if (event.target === dialog || event.target.closest("[data-close-dialog]")) dismissDialog();
     else if (event.target.closest("[data-back-to-list]")) openDayEvents(listDate);

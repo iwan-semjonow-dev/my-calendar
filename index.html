@@ -13,7 +13,10 @@
         <p class="app-name">My Calendar</p>
       </header>
       <main>
-        <h1 id="calendar-title">Годовой календарь <span id="calendar-year"></span></h1>
+        <div class="calendar-heading">
+          <h1 id="calendar-title">Годовой календарь <span id="calendar-year"></span></h1>
+          <button class="action-button" type="button" id="open-year-filters" aria-haspopup="dialog" aria-expanded="false" aria-controls="year-filters"><span aria-hidden="true">⌕</span> Фильтры</button>
+        </div>
         <section
           class="calendar-panel"
           aria-labelledby="calendar-title"
@@ -60,6 +63,24 @@
           </div>
         </section>
       </main>
+    </div>
+    <div class="day-backdrop filters-backdrop" id="year-filters" role="dialog" aria-modal="true" aria-labelledby="year-filters-title" aria-describedby="year-filters-help" hidden>
+      <section class="day-dialog filters-dialog">
+        <header class="day-dialog-header">
+          <h2 id="year-filters-title">Фильтры</h2>
+          <button class="settings-close" type="button" data-close-dialog aria-label="Закрыть фильтры">
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 6 18 18M18 6 6 18" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="2.2" /></svg>
+          </button>
+        </header>
+        <p class="day-dialog-help" id="year-filters-help">Выберите названия событий. Совпадения выделяются, а остальные события остаются видимыми, но приглушёнными.</p>
+        <p class="filter-summary" id="filter-summary" role="status">Выбрано: 0</p>
+        <p class="day-dialog-help" id="year-filters-empty">Событий пока нет. Создайте событие, чтобы выбрать его название в фильтрах.</p>
+        <div class="filter-list" id="year-filter-list" role="group" aria-label="Названия событий"></div>
+        <footer class="filters-footer">
+          <button class="filters-reset" type="button" id="reset-year-filters" disabled>Сбросить</button>
+          <button class="filters-done" type="button" data-close-dialog>Готово</button>
+        </footer>
+      </section>
     </div>
     <div class="day-backdrop" id="day-events-dialog" role="dialog" aria-modal="true" aria-labelledby="day-events-title" hidden>
       <section class="day-dialog">
