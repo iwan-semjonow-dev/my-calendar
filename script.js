@@ -37,6 +37,18 @@ const resetFiltersButton = document.querySelector("#reset-year-filters");
 const selectedEventFilters = new Set();
 const thoughtStorageKey = "my-calendar-year-thoughts-v3";
 const thoughtColours = ["", "yellow", "amber", "peach", "coral", "pink", "rose", "violet", "indigo", "blue", "sky", "mint", "teal", "green", "lime", "sand", "slate"];
+const templateStorageKey = "my-calendar-year-templates-v2";
+const templateColourNames = {
+  "thought-yellow": "Солнечный", "thought-amber": "Янтарный", "thought-peach": "Персиковый", "thought-coral": "Коралловый",
+  "thought-pink": "Розовый", "thought-rose": "Пудровый", "thought-violet": "Фиолетовый", "thought-indigo": "Индиго",
+  "thought-blue": "Голубой", "thought-sky": "Небесный", "thought-mint": "Мятный", "thought-teal": "Бирюзовый",
+  "thought-green": "Зелёный", "thought-lime": "Лаймовый", "thought-sand": "Песочный", "thought-slate": "Серый",
+};
+const templateSelect = document.querySelector("#yearly-event-template");
+const templateField = document.querySelector("#yearly-event-template-field");
+const templateHelp = document.querySelector("#yearly-event-template-help");
+const templateNotice = document.querySelector("#event-template-notice");
+let savedTemplates = [];
 const thoughtDialog = document.querySelector("#thought-dialog");
 const thoughtForm = document.querySelector("#thought-form");
 const thoughtText = document.querySelector("#thought-text");
@@ -134,6 +146,98 @@ function submitThought(event) {
   renderThoughts();
   closeDialog();
   thoughtScroll.scrollTo({ left: thoughtScroll.scrollWidth, behavior: "instant" });
+}
+
+function getEventColourName(colour) {
+  return colourNames[colour] || templateColourNames[colour];
+}
+
+function readSavedTemplates() {
+  const raw = localStorage.getItem(templateStorageKey);
+  if (raw === null) return [];
+  const items = JSON.parse(raw);
+  const ids = new Set();
+  if (!Array.isArray(items) || !items.every((item) => {
+    if (!item || typeof item.id !== "string" || !item.id.trim() || ids.has(item.id)
+      || typeof item.title !== "string" || !item.title.trim() || typeof item.description !== "string"
+      || typeof item.type !== "string" || !Object.hasOwn({ ...colourNames, ...templateColourNames }, item.type)) return false;
+    ids.add(item.id);
+    return true;
+  })) throw new Error("Invalid templates data");
+  return items;
+}
+
+function renderTemplateOptions() {
+  let error = "";
+  try {
+    savedTemplates = readSavedTemplates();
+  } catch {
+    savedTemplates = [];
+    error = "Не удалось загрузить шаблоны: данные повреждены или хранилище недоступно. Сохранения не изменены. Событие можно создать вручную.";
+  }
+  const empty = document.createElement("option");
+  empty.value = "";
+  empty.textContent = error ? "Шаблоны недоступны" : (savedTemplates.length ? "Без шаблона" : "Шаблонов пока нет");
+  templateSelect.replaceChildren(empty);
+  for (const template of savedTemplates) {
+    const option = document.createElement("option");
+    option.value = template.id;
+    option.textContent = `${template.title} · ${getEventColourName(template.type)}`;
+    templateSelect.append(option);
+  }
+  templateSelect.disabled = savedTemplates.length === 0;
+  templateHelp.textContent = error || (savedTemplates.length
+    ? "Шаблон заполнит название, цвет и описание. Дата останется выбранной здесь."
+    : "Сначала откройте событие и нажмите «Сохранить как шаблон».");
+}
+
+function setEventColour(colour) {
+  const select = eventForm.elements.colour;
+  select.querySelectorAll("[data-template-colour]").forEach((option) => option.remove());
+  if (Object.hasOwn(templateColourNames, colour)) {
+    const option = document.createElement("option");
+    option.value = colour;
+    option.textContent = `${getEventColourName(colour)} (сохранённый цвет)`;
+    option.dataset.templateColour = "";
+    select.append(option);
+  }
+  select.value = colour;
+}
+
+function applyEventTemplate() {
+  if (editingEvent) return;
+  const template = savedTemplates.find((item) => item.id === templateSelect.value);
+  if (!template) return;
+  nameInput.value = template.title;
+  nameInput.setCustomValidity("");
+  setEventColour(template.type);
+  eventForm.elements.description.value = template.description;
+  nameInput.focus({ preventScroll: true });
+}
+
+function saveEventTemplate() {
+  if (!selectedEvent || pendingDeletion || activeDialog !== cardDialog) return;
+  const { title, colour: type, description } = selectedEvent.event;
+  templateNotice.hidden = false;
+  let templates;
+  try {
+    templates = readSavedTemplates();
+  } catch {
+    templateNotice.textContent = "Не удалось прочитать шаблоны: данные повреждены или хранилище недоступно. Сохранение отменено, существующие данные не изменены.";
+    return;
+  }
+  if (templates.some((item) => item.title === title && item.type === type && item.description === description)) {
+    templateNotice.textContent = `Шаблон «${title}» уже сохранён.`;
+    return;
+  }
+  try {
+    const template = { id: `template-${crypto.randomUUID()}`, title, type, description };
+    localStorage.setItem(templateStorageKey, JSON.stringify([...templates, template]));
+  } catch {
+    templateNotice.textContent = "Не удалось сохранить шаблон. Проверьте доступ к хранилищу и свободное место, затем попробуйте ещё раз.";
+    return;
+  }
+  templateNotice.textContent = `Шаблон «${title}» сохранён. Его можно выбрать при создании следующего события.`;
 }
 
 function getDateKey(year, monthIndex, day) {
@@ -342,12 +446,14 @@ function prepareEventForm(key, event = null) {
   creationDate = key;
   editingEvent = event;
   eventForm.reset();
+  templateField.hidden = Boolean(event);
+  if (!event) renderTemplateOptions();
+  setEventColour(event ? event.colour : "study");
   nameInput.setCustomValidity("");
   document.querySelector("#yearly-event-title").textContent = event ? "Редактировать событие" : "Новое событие";
   eventForm.querySelector("[type=submit]").textContent = event ? "Сохранить изменения" : "Создать событие";
   if (event) {
     nameInput.value = event.title;
-    eventForm.elements.colour.value = event.colour;
     eventForm.elements.description.value = event.description;
   }
   document.querySelector("#yearly-event-date").textContent = `Дата: ${formatDate(creationDate)}`;
@@ -362,11 +468,12 @@ function openCreationForm(key, opener = null, fromList = false) {
 function openEventCard(key, index, opener = null, fromList = false) {
   const event = events[key][index];
   selectedEvent = { key, event, fromList };
+  templateNotice.hidden = true;
   setDeleteConfirmation(false);
   cardDialog.querySelector("[data-back-to-list]").hidden = !fromList;
   document.querySelector("#event-card-title").textContent = event.title;
   document.querySelector("#event-card-date").textContent = formatDate(key);
-  document.querySelector("#event-card-colour").textContent = colourNames[event.colour];
+  document.querySelector("#event-card-colour").textContent = getEventColourName(event.colour);
   document.querySelector("#event-card-description").textContent = event.description || "Без описания";
   openDialog(cardDialog, opener, cardDialog.querySelector("[data-close-dialog]"));
 }
@@ -396,6 +503,7 @@ function setDeleteConfirmation(visible) {
 
 function requestDeletion() {
   if (!selectedEvent) return;
+  templateNotice.hidden = true;
   deleteNotice.textContent = `Удалить событие «${selectedEvent.event.title}»?`;
   setDeleteConfirmation(true);
   cancelDeleteButton.focus({ preventScroll: true });
@@ -523,6 +631,8 @@ dayEventList.addEventListener("click", (event) => {
 });
 createFromList.addEventListener("click", () => openCreationForm(listDate, null, true));
 editButton.addEventListener("click", openEventEditor);
+document.querySelector("#save-event-template").addEventListener("click", saveEventTemplate);
+templateSelect.addEventListener("change", applyEventTemplate);
 deleteButton.addEventListener("click", requestDeletion);
 cancelDeleteButton.addEventListener("click", cancelDeletion);
 document.querySelector("#confirm-event-delete").addEventListener("click", confirmDeletion);

@@ -149,6 +149,10 @@
         <p class="day-dialog-help" id="yearly-event-help">Событие хранится только до перезагрузки страницы.</p>
         <form class="yearly-form" id="yearly-event-form">
           <p class="yearly-fixed-date" id="yearly-event-date"></p>
+          <label class="yearly-field" id="yearly-event-template-field" for="yearly-event-template">Создать из шаблона
+            <select id="yearly-event-template" aria-describedby="yearly-event-template-help"></select>
+            <span class="yearly-field-help" id="yearly-event-template-help" role="status"></span>
+          </label>
           <label class="yearly-field" for="yearly-event-name">Название
             <input id="yearly-event-name" name="title" type="text" required maxlength="60" />
           </label>
@@ -191,8 +195,10 @@
         </dl>
         <div class="event-card-actions" id="event-card-actions">
           <button class="event-card-action" type="button" id="edit-event">Редактировать</button>
+          <button class="event-card-action" type="button" id="save-event-template">Сохранить как шаблон</button>
           <button class="event-card-action danger" type="button" id="delete-event">Удалить</button>
         </div>
+        <p class="event-card-notice" id="event-template-notice" role="status" hidden></p>
         <p class="event-card-notice" id="event-delete-notice" role="status" hidden></p>
         <div class="event-card-confirm" id="event-delete-confirm" hidden>
           <button class="day-secondary" type="button" id="cancel-event-delete">Отмена</button>
