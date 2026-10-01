@@ -1,29 +1,59 @@
 # My Calendar
 
-My Calendar is a planned web-based calendar focused on presenting time in a clear, visual, and connected way.
+My Calendar is a visual yearly planning app inspired by a large paper calendar. It brings the months of a year into one connected view.
 
-## The Problem
+The project is a working yearly prototype in active development. The application interface is in Russian.
 
-Most digital calendars are designed around daily, weekly, or monthly views, making it difficult to see an entire year at a glance.
+## Current features
 
-## Goal
+- Twelve vertical month columns for the current system year, determined when the page loads.
+- Valid dates and weekdays, including leap years, with distinct styling for weekends, past days, and today.
+- Create, view, and edit events, and delete them with confirmation. Events have a date, title, colour, and description, without start or end times.
+- Multiple events on one date, a counter for additional events, and a list of the day's events.
+- Filters by event title that highlight matches and dim other events while keeping every date in the grid.
+- Add undated thoughts to a horizontal card strip above the calendar.
+- Save an event's title, colour, and description as an independent template. Apply a template when creating an event, keep the selected date, and adjust the fields before creation.
+- Manually add independent event snapshots to a chronological history strip. Editing or deleting the original event does not change its snapshots. Deleting a snapshot requires confirmation.
+- Three yearly scales: Compact, Standard, and Large. Selection gives an immediate preview; cancellation restores the previous scale, and saving retains the choice. Scale changes text size and the widths of the date number and weekday areas; row height stays the same.
 
-The goal is to create a visual calendar that begins with a complete yearly overview and later supports detailed weekly planning.
+## Data storage and limitations
 
-## Planned Features
+| Data | Storage | After a page reload |
+|---|---|---|
+| Events | In memory | Lost |
+| History snapshots | In memory | Lost |
+| Thoughts | localStorage | Retained between reloads |
+| Event templates | localStorage | Retained between reloads |
+| Yearly scale setting | localStorage | Retained between reloads |
+| Filter selection | In memory | Reset |
 
-- Yearly calendar with all 12 months
-- Dated events
-- Undated thoughts
-- Weekly time planning
-- History of meaningful events
+localStorage belongs to the browser and profile used to open the app. It provides neither cloud synchronization nor a backup. Retention depends on storage being available and saving successfully; clearing browser data can remove saved records.
 
-## Planned Technology
+Events and history snapshots are not yet suitable for reliably storing important information: reloading or closing the page loses them.
 
-- HTML5
-- CSS3
-- JavaScript
+The current version has no year switching, weekly mode, backup export, or backup restoration. Thoughts can be added and viewed, but cannot yet be edited or deleted. Full template library management, including editing and deleting templates, is not implemented.
 
-## Status
+## Run locally
 
-Early development. The first goal is to build the basic yearly calendar layout.
+1. Clone the repository, or download the ZIP archive and extract it.
+2. Open `index.html` in a modern browser.
+
+No dependency installation or build step is required. Keep `index.html`, `styles.css`, and `script.js` together in the project folder.
+
+When opening the app directly through a `file://` URL, localStorage availability and behaviour can vary between browsers. Check that saving and reloading work in the browser you use before relying on retained data.
+
+Use a separate browser profile with artificial data for local testing to keep test records isolated from your working calendar.
+
+## Technology and files
+
+The app uses HTML5, CSS3, JavaScript, and the Web Storage API (`localStorage`).
+
+| File | Purpose |
+|---|---|
+| `index.html` | Page structure and dialogs |
+| `styles.css` | Layout and visual styles |
+| `script.js` | Calendar rendering and interactions |
+
+## Project direction
+
+See [Project Vision](PROJECT_VISION.md) for the broader product direction. It describes planned capabilities, including detailed weekly planning and manual backup and restore. These are future work, not features of the current prototype. The implemented scope and storage limitations are described above.
