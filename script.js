@@ -73,6 +73,73 @@ const historyTimeline = document.querySelector("#history-timeline");
 const historyScroll = document.querySelector("#history-scroll");
 const historyDeleteDialog = document.querySelector("#history-delete-dialog");
 let historyEntryToDelete = null;
+const settingsStorageKey = "my-calendar-settings-v1";
+const yearScales = ["compact", "standard", "large"];
+const settingsDialog = document.querySelector("#year-settings");
+const settingsButton = document.querySelector("#open-year-settings");
+const scaleButtons = [...settingsDialog.querySelectorAll("[data-year-scale]")];
+const settingsError = document.querySelector("#year-settings-error");
+let yearScale = "standard";
+let yearScaleDraft = yearScale;
+
+function readYearSettings() {
+  const raw = localStorage.getItem(settingsStorageKey);
+  if (raw === null) return {};
+  const settings = JSON.parse(raw);
+  if (!settings || typeof settings !== "object" || Array.isArray(settings)) {
+    throw new Error("Invalid settings structure");
+  }
+  return settings;
+}
+
+function showSettingsError(message = "") {
+  settingsError.textContent = message;
+  settingsError.hidden = !message;
+}
+
+function applyYearScale(scale) {
+  document.body.dataset.yearScale = scale;
+  scaleButtons.forEach((button) => {
+    button.setAttribute("aria-pressed", String(button.dataset.yearScale === scale));
+  });
+}
+
+function loadYearScale() {
+  try {
+    const settings = readYearSettings();
+    yearScale = yearScales.includes(settings.yearScale) ? settings.yearScale : "standard";
+  } catch {
+    showSettingsError("Не удалось прочитать настройки. Используется обычный масштаб. Исходные данные не изменены.");
+  }
+  applyYearScale(yearScale);
+}
+
+function openYearSettings() {
+  yearScaleDraft = yearScale;
+  applyYearScale(yearScaleDraft);
+  settingsButton.setAttribute("aria-expanded", "true");
+  openDialog(settingsDialog, settingsButton, settingsDialog.querySelector('[aria-pressed="true"]'));
+}
+
+function saveYearSettings() {
+  if (activeDialog !== settingsDialog) return;
+  let settings;
+  try {
+    settings = readYearSettings();
+  } catch {
+    showSettingsError("Не удалось прочитать текущие настройки. Сохранение остановлено, чтобы не затереть исходные данные. Можно повторить попытку или отменить выбор.");
+    return;
+  }
+  try {
+    localStorage.setItem(settingsStorageKey, JSON.stringify({ ...settings, yearScale: yearScaleDraft }));
+  } catch {
+    showSettingsError("Не удалось сохранить масштаб. Проверьте доступность хранилища и повторите попытку или отмените выбор.");
+    return;
+  }
+  yearScale = yearScaleDraft;
+  showSettingsError();
+  closeDialog();
+}
 
 function createHistoryCard(record) {
   const card = document.createElement("article");
@@ -502,6 +569,10 @@ function openDialog(dialog, opener, focusTarget) {
 
 function closeDialog() {
   if (!activeDialog) return;
+  if (activeDialog === settingsDialog) {
+    applyYearScale(yearScale);
+    settingsButton.setAttribute("aria-expanded", "false");
+  }
   if (activeDialog === filtersDialog) filtersButton.setAttribute("aria-expanded", "false");
   activeDialog.hidden = true;
   app.inert = false;
@@ -752,7 +823,14 @@ document.querySelectorAll("[data-thought-scroll]").forEach((button) => {
   });
 });
 
-for (const dialog of [creationDialog, cardDialog, listDialog, filtersDialog, thoughtDialog, historyDeleteDialog]) {
+settingsButton.addEventListener("click", openYearSettings);
+scaleButtons.forEach((button) => button.addEventListener("click", () => {
+  yearScaleDraft = button.dataset.yearScale;
+  applyYearScale(yearScaleDraft);
+}));
+document.querySelector("#save-year-settings").addEventListener("click", saveYearSettings);
+
+for (const dialog of [creationDialog, cardDialog, listDialog, filtersDialog, thoughtDialog, historyDeleteDialog, settingsDialog]) {
   dialog.addEventListener("click", (event) => {
     if (event.target === dialog || event.target.closest("[data-close-dialog]")) dismissDialog();
     else if (event.target.closest("[data-back-to-list]")) openDayEvents(listDate);
@@ -762,6 +840,7 @@ document.addEventListener("keydown", handleDialogKeydown);
 nameInput.addEventListener("input", () => nameInput.setCustomValidity(""));
 eventForm.addEventListener("submit", submitEvent);
 
+loadYearScale();
 renderCalendar(currentYear);
 loadThoughts();
 renderThoughts();

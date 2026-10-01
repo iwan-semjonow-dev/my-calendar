@@ -16,6 +16,7 @@
         <div class="calendar-heading">
           <h1 id="calendar-title">Годовой календарь <span id="calendar-year"></span></h1>
           <button class="action-button" type="button" id="open-year-filters" aria-haspopup="dialog" aria-expanded="false" aria-controls="year-filters"><span aria-hidden="true">⌕</span> Фильтры</button>
+          <button class="action-button settings-trigger" type="button" id="open-year-settings" aria-haspopup="dialog" aria-expanded="false" aria-controls="year-settings">Настройки</button>
         </div>
         <section class="thought-panel" aria-labelledby="thoughts-title">
           <div class="thought-panel-heading">
@@ -98,6 +99,30 @@
           </div>
         </section>
       </main>
+    </div>
+    <div class="day-backdrop settings-backdrop" id="year-settings" role="dialog" aria-modal="true" aria-labelledby="year-settings-title" hidden>
+      <section class="day-dialog settings-dialog">
+        <header class="day-dialog-header">
+          <h2 id="year-settings-title">Настройки</h2>
+          <button class="settings-close" type="button" data-close-dialog aria-label="Закрыть настройки">
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 6 18 18M18 6 6 18" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="2.2" /></svg>
+          </button>
+        </header>
+        <div class="settings-section">
+          <h3>Масштаб сетки</h3>
+          <p class="day-dialog-help" id="year-scale-help">Это предпросмотр: выбор сразу меняет размер текста и ширину областей даты в календаре.</p>
+          <div class="scale-options" role="group" aria-label="Масштаб годового календаря" aria-describedby="year-scale-help">
+            <button class="scale-option" type="button" data-year-scale="compact" aria-pressed="false">Компактный</button>
+            <button class="scale-option" type="button" data-year-scale="standard" aria-pressed="true">Обычный</button>
+            <button class="scale-option" type="button" data-year-scale="large" aria-pressed="false">Крупный</button>
+          </div>
+        </div>
+        <p class="settings-error" id="year-settings-error" role="alert" hidden></p>
+        <footer class="day-dialog-footer">
+          <button class="day-secondary" type="button" data-close-dialog>Отмена</button>
+          <button class="day-primary" id="save-year-settings" type="button">Сохранить</button>
+        </footer>
+      </section>
     </div>
     <div class="day-backdrop" id="history-delete-dialog" role="dialog" aria-modal="true" aria-labelledby="history-delete-title" aria-describedby="history-delete-copy" hidden>
       <section class="day-dialog">
