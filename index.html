@@ -81,7 +81,38 @@
             </div>
           </div>
         </section>
+        <section class="history-panel" aria-labelledby="history-title">
+          <div class="history-heading"><h2 id="history-title">История</h2></div>
+          <p class="history-help">Записи сохраняются только до перезагрузки страницы.</p>
+          <div class="history-carousel">
+            <button class="carousel-control" type="button" data-history-scroll="left" aria-label="Прокрутить историю влево">
+              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m15.5 5-7 7 7 7" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" /></svg>
+            </button>
+            <div class="history-scroll" id="history-scroll" tabindex="0" role="region" aria-label="Лента истории">
+              <div class="timeline" id="history-timeline"></div>
+              <p class="history-empty" id="history-empty">История пока пуста. Откройте событие и нажмите «Добавить в историю».</p>
+            </div>
+            <button class="carousel-control" type="button" data-history-scroll="right" aria-label="Прокрутить историю вправо">
+              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m8.5 5 7 7-7 7" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" /></svg>
+            </button>
+          </div>
+        </section>
       </main>
+    </div>
+    <div class="day-backdrop" id="history-delete-dialog" role="dialog" aria-modal="true" aria-labelledby="history-delete-title" aria-describedby="history-delete-copy" hidden>
+      <section class="day-dialog">
+        <header class="day-dialog-header">
+          <h2 id="history-delete-title">Удалить запись из истории?</h2>
+          <button class="settings-close" type="button" data-close-dialog aria-label="Закрыть подтверждение">
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 6 18 18M18 6 6 18" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="2.2" /></svg>
+          </button>
+        </header>
+        <p class="day-dialog-help history-delete-copy" id="history-delete-copy"></p>
+        <footer class="day-dialog-footer">
+          <button class="day-secondary" id="cancel-history-delete" type="button" data-close-dialog>Отмена</button>
+          <button class="day-primary" id="confirm-history-delete" type="button">Удалить</button>
+        </footer>
+      </section>
     </div>
     <div class="day-backdrop" id="thought-dialog" role="dialog" aria-modal="true" aria-labelledby="thought-dialog-title" aria-describedby="thought-dialog-help" hidden>
       <section class="day-dialog">
@@ -196,6 +227,7 @@
         <div class="event-card-actions" id="event-card-actions">
           <button class="event-card-action" type="button" id="edit-event">Редактировать</button>
           <button class="event-card-action" type="button" id="save-event-template">Сохранить как шаблон</button>
+          <button class="event-card-action" type="button" id="add-event-history">Добавить в историю</button>
           <button class="event-card-action danger" type="button" id="delete-event">Удалить</button>
         </div>
         <p class="event-card-notice" id="event-template-notice" role="status" hidden></p>

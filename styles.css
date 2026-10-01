@@ -376,3 +376,31 @@ h1 {
 .yearly-field[hidden] { display: none; }
 .yearly-field-help { color: #718095; font-size: 11px; font-weight: 500; line-height: 1.35; }
 .yearly-field select:disabled { color: #8a94a2; background: #f5f7fa; cursor: not-allowed; }
+
+.history-panel { margin-top: 18px; overflow: hidden; padding-bottom: 24px; border: 1px solid #e7e9ee; border-radius: 8px; background: #fff; box-shadow: 0 12px 28px rgba(23, 34, 54, 0.06); font-family: "Segoe UI", Arial, sans-serif; }
+.history-heading { padding: 11px 20px 7px; }
+.history-heading h2 { margin: 0; font-size: 13px; font-weight: 680; letter-spacing: -0.025em; text-transform: uppercase; }
+.history-help { margin: 0; padding: 0 20px; color: #6f7785; font-size: 11px; }
+.history-carousel { display: grid; grid-template-columns: 38px minmax(0, 1fr) 38px; align-items: center; gap: 10px; padding: 9px 16px 0; }
+.history-carousel .carousel-control { transform: translateY(-3px); }
+.history-scroll { min-width: 0; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: thin; scrollbar-color: #b7c0cc transparent; }
+.history-scroll::-webkit-scrollbar { height: 8px; }
+.history-scroll::-webkit-scrollbar-thumb { border: 2px solid #fff; border-radius: 999px; background: #b7c0cc; }
+.timeline { display: flex; width: max-content; align-items: center; padding: 2px 2px 8px; }
+.history-card { position: relative; display: flex; width: 188px; min-height: 57px; flex: 0 0 188px; align-items: center; padding: 9px 32px 9px 9px; border: 1px solid #e3e7ec; border-radius: 7px; background: #fff; overflow-wrap: anywhere; }
+.history-card > div { min-width: 0; }
+.history-title { margin: 0; font-size: 11px; font-weight: 600; line-height: 1.2; }
+.history-date { margin: 3px 0 0; color: #6f7785; font-size: 10px; letter-spacing: 0; }
+.history-delete { position: absolute; top: 7px; right: 7px; display: grid; width: 19px; height: 19px; place-items: center; padding: 0; color: #a84955; border: 1px solid #efc7cc; border-radius: 5px; background: #fffafb; font-weight: 600; cursor: pointer; }
+.history-delete svg { display: block; width: 12px; height: 12px; }
+.history-delete:hover { background: #fff0f1; }
+.history-connector { position: relative; width: 58px; height: 1px; flex: 0 0 58px; background: #d4d9e2; }
+.history-connector::after { position: absolute; top: -3px; left: 50%; width: 7px; height: 7px; content: ""; border-radius: 50%; background: #a9b1bf; }
+.history-continuation { position: relative; width: 66px; height: 1px; flex: 0 0 66px; background: #d4d9e2; }
+.history-continuation::after { position: absolute; top: -5px; right: -1px; width: 11px; height: 11px; content: ""; border: 2px solid #fff; border-radius: 50%; background: #7f8997; box-shadow: 0 0 0 1px #b8c0cb; }
+.history-empty { margin: 0; padding: 9px; color: #6f7785; font-size: 12px; }
+.history-delete-copy { overflow-wrap: anywhere; }
+@media (max-width: 1320px) {
+  .history-carousel { gap: 8px; padding-right: 14px; padding-left: 14px; }
+  .history-card { width: 165px; flex-basis: 165px; }
+}

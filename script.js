@@ -68,6 +68,79 @@ let listDate = null;
 let selectedEvent = null;
 let editingEvent = null;
 let pendingDeletion = null;
+const historyRecords = [];
+const historyTimeline = document.querySelector("#history-timeline");
+const historyScroll = document.querySelector("#history-scroll");
+const historyDeleteDialog = document.querySelector("#history-delete-dialog");
+let historyEntryToDelete = null;
+
+function createHistoryCard(record) {
+  const card = document.createElement("article");
+  card.className = "history-card";
+  const copy = document.createElement("div");
+  const title = document.createElement("p");
+  title.className = "history-title";
+  title.textContent = record.title;
+  const date = document.createElement("p");
+  date.className = "history-date";
+  date.textContent = formatDate(record.date);
+  copy.append(title, date);
+  const remove = document.createElement("button");
+  remove.type = "button";
+  remove.className = "history-delete";
+  remove.dataset.historyId = record.id;
+  remove.setAttribute("aria-label", `Удалить «${record.title}» из истории, ${formatDate(record.date)}`);
+  remove.append(cardDialog.querySelector(".settings-close svg").cloneNode(true));
+  card.append(copy, remove);
+  return card;
+}
+
+function renderHistory() {
+  const scrollLeft = historyScroll.scrollLeft;
+  const entries = [...historyRecords].sort((a, b) => a.date.localeCompare(b.date));
+  const fragment = document.createDocumentFragment();
+  entries.forEach((record, index) => {
+    fragment.append(createHistoryCard(record));
+    const line = document.createElement("span");
+    line.className = index === entries.length - 1 ? "history-continuation" : "history-connector";
+    line.setAttribute("aria-hidden", "true");
+    fragment.append(line);
+  });
+  historyTimeline.replaceChildren(fragment);
+  document.querySelector("#history-empty").hidden = entries.length > 0;
+  historyScroll.scrollLeft = scrollLeft;
+}
+
+function addEventHistory() {
+  if (!selectedEvent || pendingDeletion || activeDialog !== cardDialog) return;
+  const { title, colour, description } = selectedEvent.event;
+  historyRecords.push({ id: `history-${crypto.randomUUID()}`, date: selectedEvent.key, title, colour, description });
+  renderHistory();
+  templateNotice.textContent = "Снимок события добавлен в историю. Исходное событие осталось без изменений.";
+  templateNotice.hidden = false;
+}
+
+function openHistoryDelete(button) {
+  const record = historyRecords.find((item) => item.id === button.dataset.historyId);
+  if (!record) return;
+  historyEntryToDelete = record.id;
+  document.querySelector("#history-delete-copy").textContent = `Удалить «${record.title}» (${formatDate(record.date)})? Будет удалён только этот снимок. Исходное событие останется без изменений.`;
+  openDialog(historyDeleteDialog, button, document.querySelector("#cancel-history-delete"));
+}
+
+function confirmHistoryDeletion() {
+  if (activeDialog !== historyDeleteDialog || !historyEntryToDelete) return;
+  const index = historyRecords.findIndex((item) => item.id === historyEntryToDelete);
+  if (index < 0) return;
+  const buttons = [...historyTimeline.querySelectorAll(".history-delete")];
+  const position = buttons.findIndex((button) => button.dataset.historyId === historyEntryToDelete);
+  const nextId = (buttons[position + 1] || buttons[position - 1])?.dataset.historyId;
+  historyRecords.splice(index, 1);
+  renderHistory();
+  dialogOpener = [...historyTimeline.querySelectorAll(".history-delete")]
+    .find((button) => button.dataset.historyId === nextId) || historyScroll;
+  closeDialog();
+}
 
 function showThoughtError(element, message) {
   element.textContent = message;
@@ -440,6 +513,7 @@ function closeDialog() {
   selectedEvent = null;
   editingEvent = null;
   pendingDeletion = null;
+  historyEntryToDelete = null;
 }
 
 function prepareEventForm(key, event = null) {
@@ -632,6 +706,18 @@ dayEventList.addEventListener("click", (event) => {
 createFromList.addEventListener("click", () => openCreationForm(listDate, null, true));
 editButton.addEventListener("click", openEventEditor);
 document.querySelector("#save-event-template").addEventListener("click", saveEventTemplate);
+document.querySelector("#add-event-history").addEventListener("click", addEventHistory);
+historyTimeline.addEventListener("click", (event) => {
+  const button = event.target.closest("button[data-history-id]");
+  if (button) openHistoryDelete(button);
+});
+document.querySelector("#confirm-history-delete").addEventListener("click", confirmHistoryDeletion);
+document.querySelectorAll("[data-history-scroll]").forEach((button) => {
+  button.addEventListener("click", () => {
+    const direction = button.dataset.historyScroll === "right" ? 1 : -1;
+    historyScroll.scrollBy({ left: direction * 376, behavior: "smooth" });
+  });
+});
 templateSelect.addEventListener("change", applyEventTemplate);
 deleteButton.addEventListener("click", requestDeletion);
 cancelDeleteButton.addEventListener("click", cancelDeletion);
@@ -666,7 +752,7 @@ document.querySelectorAll("[data-thought-scroll]").forEach((button) => {
   });
 });
 
-for (const dialog of [creationDialog, cardDialog, listDialog, filtersDialog, thoughtDialog]) {
+for (const dialog of [creationDialog, cardDialog, listDialog, filtersDialog, thoughtDialog, historyDeleteDialog]) {
   dialog.addEventListener("click", (event) => {
     if (event.target === dialog || event.target.closest("[data-close-dialog]")) dismissDialog();
     else if (event.target.closest("[data-back-to-list]")) openDayEvents(listDate);
