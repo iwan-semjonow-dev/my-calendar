@@ -81,6 +81,89 @@ const scaleButtons = [...settingsDialog.querySelectorAll("[data-year-scale]")];
 const settingsError = document.querySelector("#year-settings-error");
 let yearScale = "standard";
 let yearScaleDraft = yearScale;
+const eventStorageKey = "my-calendar-year-events-v2";
+const storedEventRecords = new WeakMap();
+const eventLoadError = document.querySelector("#event-load-error");
+const eventSaveError = document.querySelector("#event-save-error");
+const eventDeleteError = document.querySelector("#event-delete-error");
+let eventStorageSnapshot = null;
+let eventStorageBlocked = false;
+
+function showEventStorageError(element, message = "") {
+  element.textContent = message;
+  element.hidden = !message;
+}
+
+function isCalendarDate(key) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(key)) return false;
+  const [year, month, day] = key.split("-").map(Number);
+  const date = new Date(0);
+  date.setFullYear(year, month - 1, day);
+  return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day;
+}
+
+function parseYearEvents(raw) {
+  if (raw === null) return {};
+  const stored = JSON.parse(raw);
+  if (!stored || typeof stored !== "object" || Array.isArray(stored)) throw new Error("Invalid events data");
+  return Object.fromEntries(Object.entries(stored).map(([date, records]) => {
+    if (!isCalendarDate(date) || !Array.isArray(records)) throw new Error("Invalid event date or collection");
+    return [date, records.map((record) => {
+      if (!Array.isArray(record) || record.length < 2
+        || typeof record[0] !== "string" || !record[0].trim()
+        || typeof record[1] !== "string" || !Object.hasOwn({ ...colourNames, ...templateColourNames }, record[1])
+        || (record.length > 2 && typeof record[2] !== "string")
+        || record[3] === "thought") throw new Error("Unsupported event record");
+      const event = { title: record[0], colour: record[1], description: record[2] ?? "" };
+      // Keep the original tuple, including opaque metadata beyond the visible fields.
+      storedEventRecords.set(event, record);
+      return event;
+    })];
+  }));
+}
+
+function serializeYearEvents(state) {
+  return JSON.stringify(Object.fromEntries(Object.entries(state).map(([date, dayEvents]) => [date,
+    dayEvents.map((event) => {
+      const record = [...(storedEventRecords.get(event) || ["", "", ""])];
+      record[0] = event.title;
+      record[1] = event.colour;
+      if (record.length > 2 || event.description !== "") record[2] = event.description;
+      return record;
+    }),
+  ])));
+}
+
+function loadYearEvents() {
+  try {
+    eventStorageSnapshot = localStorage.getItem(eventStorageKey);
+    Object.assign(events, parseYearEvents(eventStorageSnapshot));
+  } catch {
+    eventStorageBlocked = true;
+    showEventStorageError(eventLoadError, "Не удалось загрузить события: данные повреждены, имеют неподдерживаемый формат или хранилище недоступно. Запись событий заблокирована, исходные данные не изменены. После восстановления данных или доступа перезагрузите страницу.");
+  }
+}
+
+function saveYearEvents(nextEvents, errorElement) {
+  if (eventStorageBlocked) {
+    showEventStorageError(errorElement, eventLoadError.textContent);
+    return false;
+  }
+  try {
+    if (localStorage.getItem(eventStorageKey) !== eventStorageSnapshot) {
+      showEventStorageError(errorElement, "Сохранённые события изменились после загрузки страницы, возможно в другой вкладке. Запись остановлена. Скопируйте несохранённый ввод перед обновлением страницы: он будет потерян при перезагрузке.");
+      return false;
+    }
+    const serialized = serializeYearEvents(nextEvents);
+    localStorage.setItem(eventStorageKey, serialized);
+    eventStorageSnapshot = serialized;
+  } catch {
+    showEventStorageError(errorElement, "Не удалось сохранить события. Операция не выполнена: текущие события и несохранённый ввод не изменены. Проверьте доступ к хранилищу и повторите попытку или отмените действие.");
+    return false;
+  }
+  showEventStorageError(errorElement);
+  return true;
+}
 
 function readYearSettings() {
   const raw = localStorage.getItem(settingsStorageKey);
@@ -461,7 +544,9 @@ function renderFilterOptions(titles) {
 }
 
 function syncYearFilters() {
-  const titles = new Set(Object.values(events).flatMap((dayEvents) => dayEvents.map((event) => event.title)));
+  const titles = new Set(Object.entries(events)
+    .filter(([date]) => Number(date.slice(0, 4)) === currentYear)
+    .flatMap(([, dayEvents]) => dayEvents.map((event) => event.title)));
   for (const title of selectedEventFilters) {
     if (!titles.has(title)) selectedEventFilters.delete(title);
   }
@@ -591,6 +676,9 @@ function prepareEventForm(key, event = null) {
   creationDate = key;
   editingEvent = event;
   eventForm.reset();
+  showEventStorageError(eventSaveError, eventStorageBlocked ? eventLoadError.textContent : "");
+  nameInput.maxLength = Math.max(60, event?.title.length || 0);
+  eventForm.elements.description.maxLength = Math.max(240, event?.description.length || 0);
   templateField.hidden = Boolean(event);
   if (!event) renderTemplateOptions();
   setEventColour(event ? event.colour : "study");
@@ -639,6 +727,7 @@ function cancelEditing() {
 }
 
 function setDeleteConfirmation(visible) {
+  showEventStorageError(eventDeleteError);
   pendingDeletion = visible ? selectedEvent : null;
   cardActions.hidden = visible;
   deleteNotice.hidden = !visible;
@@ -668,9 +757,13 @@ function refreshDate(key) {
 function confirmDeletion() {
   if (!pendingDeletion || activeDialog !== cardDialog) return;
   const { key, event } = pendingDeletion;
-  setDeleteConfirmation(false);
   const index = events[key]?.indexOf(event) ?? -1;
   if (index < 0) return;
+  const remaining = events[key].filter((_, position) => position !== index);
+  const nextEvents = { ...events, [key]: remaining };
+  if (!remaining.length) delete nextEvents[key];
+  if (!saveYearEvents(nextEvents, eventDeleteError)) return;
+  setDeleteConfirmation(false);
   events[key].splice(index, 1);
   if (events[key].length === 0) delete events[key];
   refreshDate(key);
@@ -729,8 +822,15 @@ function submitEvent(event) {
     colour: eventForm.elements.colour.value,
     description: eventForm.elements.description.value.trim(),
   };
+  const dayEvents = events[creationDate] || [];
+  const index = editingEvent ? dayEvents.indexOf(editingEvent) : -1;
+  if (editingEvent && index < 0) return;
+  if (editingEvent) storedEventRecords.set(changes, storedEventRecords.get(editingEvent));
+  const nextDay = editingEvent
+    ? dayEvents.map((item, position) => position === index ? changes : item)
+    : [...dayEvents, changes];
+  if (!saveYearEvents({ ...events, [creationDate]: nextDay }, eventSaveError)) return;
   if (editingEvent) {
-    if (!events[creationDate]?.includes(editingEvent)) return;
     Object.assign(editingEvent, changes);
   } else {
     if (!events[creationDate]) events[creationDate] = [];
@@ -841,6 +941,8 @@ nameInput.addEventListener("input", () => nameInput.setCustomValidity(""));
 eventForm.addEventListener("submit", submitEvent);
 
 loadYearScale();
+loadYearEvents();
 renderCalendar(currentYear);
+syncYearFilters();
 loadThoughts();
 renderThoughts();

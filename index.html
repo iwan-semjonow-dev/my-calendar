@@ -37,6 +37,7 @@
             </button>
           </div>
         </section>
+        <p class="settings-error" id="event-load-error" role="alert" hidden></p>
         <section
           class="calendar-panel"
           aria-labelledby="calendar-title"
@@ -202,7 +203,7 @@
             <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 6 18 18M18 6 6 18" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="2.2" /></svg>
           </button>
         </header>
-        <p class="day-dialog-help" id="yearly-event-help">Событие хранится только до перезагрузки страницы.</p>
+        <p class="day-dialog-help" id="yearly-event-help">После успешного сохранения событие остаётся в этом браузере между перезагрузками. Это не облачная синхронизация и не резервная копия.</p>
         <form class="yearly-form" id="yearly-event-form">
           <p class="yearly-fixed-date" id="yearly-event-date"></p>
           <label class="yearly-field" id="yearly-event-template-field" for="yearly-event-template">Создать из шаблона
@@ -224,6 +225,7 @@
           <label class="yearly-field" for="yearly-event-description">Описание
             <textarea id="yearly-event-description" name="description" maxlength="240" placeholder="Необязательно"></textarea>
           </label>
+          <p class="settings-error" id="event-save-error" role="alert" hidden></p>
           <footer class="day-dialog-footer">
             <button class="day-secondary" type="button" data-back-to-list hidden>← К списку</button>
             <button class="day-secondary" type="button" data-close-dialog>Отмена</button>
@@ -257,6 +259,7 @@
         </div>
         <p class="event-card-notice" id="event-template-notice" role="status" hidden></p>
         <p class="event-card-notice" id="event-delete-notice" role="status" hidden></p>
+        <p class="settings-error" id="event-delete-error" role="alert" hidden></p>
         <div class="event-card-confirm" id="event-delete-confirm" hidden>
           <button class="day-secondary" type="button" id="cancel-event-delete">Отмена</button>
           <button class="day-primary" type="button" id="confirm-event-delete" aria-describedby="event-delete-notice">Удалить событие</button>
