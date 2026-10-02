@@ -84,8 +84,11 @@
           </div>
         </section>
         <section class="history-panel" aria-labelledby="history-title">
-          <div class="history-heading"><h2 id="history-title">История</h2></div>
-          <p class="history-help">Записи сохраняются только до перезагрузки страницы.</p>
+          <div class="history-heading">
+            <h2 id="history-title">История</h2>
+            <p class="settings-error" id="history-load-error" role="alert" hidden></p>
+          </div>
+          <p class="history-help">После успешного сохранения снимки остаются в этом браузере между перезагрузками. Это не резервная копия и не облачная синхронизация.</p>
           <div class="history-carousel">
             <button class="carousel-control" type="button" data-history-scroll="left" aria-label="Прокрутить историю влево">
               <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m15.5 5-7 7 7 7" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" /></svg>
@@ -134,6 +137,7 @@
           </button>
         </header>
         <p class="day-dialog-help history-delete-copy" id="history-delete-copy"></p>
+        <p class="settings-error" id="history-delete-error" role="alert" hidden></p>
         <footer class="day-dialog-footer">
           <button class="day-secondary" id="cancel-history-delete" type="button" data-close-dialog>Отмена</button>
           <button class="day-primary" id="confirm-history-delete" type="button">Удалить</button>

@@ -73,6 +73,15 @@ const historyTimeline = document.querySelector("#history-timeline");
 const historyScroll = document.querySelector("#history-scroll");
 const historyDeleteDialog = document.querySelector("#history-delete-dialog");
 let historyEntryToDelete = null;
+const historyStorageKey = "my-calendar-year-history-v2";
+const legacyHistoryStorageKey = "my-calendar-year-history-v1";
+const historyLoadError = document.querySelector("#history-load-error");
+const historyDeleteError = document.querySelector("#history-delete-error");
+let historyStorageSnapshot = null;
+let legacyHistorySnapshot = null;
+let historyUsesLegacy = false;
+let historyStorageBlocked = false;
+let pendingHistoryRecord = null;
 const settingsStorageKey = "my-calendar-settings-v1";
 const yearScales = ["compact", "standard", "large"];
 const settingsDialog = document.querySelector("#year-settings");
@@ -224,13 +233,75 @@ function saveYearSettings() {
   closeDialog();
 }
 
+function historyTitle(record) {
+  return Object.hasOwn(record, "title") ? record.title : record.label;
+}
+
+function parseHistory(raw) {
+  if (raw === null) return [];
+  const records = JSON.parse(raw);
+  const ids = new Set();
+  if (!Array.isArray(records) || !records.every((record) => {
+    if (!record || typeof record !== "object" || Array.isArray(record)
+      || typeof record.id !== "string" || !record.id.trim() || ids.has(record.id)
+      || typeof record.date !== "string" || !isCalendarDate(record.date)) return false;
+    const full = Object.hasOwn(record, "title");
+    const title = historyTitle(record);
+    if (typeof title !== "string" || !title.trim()
+      || ((full || Object.hasOwn(record, "colour")) && typeof record.colour !== "string")
+      || ((full || Object.hasOwn(record, "description")) && typeof record.description !== "string")
+      || (Object.hasOwn(record, "label") && typeof record.label !== "string")) return false;
+    ids.add(record.id);
+    return true;
+  })) throw new Error("Invalid history data");
+  // Preserve legacy records and extra fields without inventing missing snapshot data.
+  return records;
+}
+
+function loadHistory() {
+  try {
+    historyStorageSnapshot = localStorage.getItem(historyStorageKey);
+    historyUsesLegacy = historyStorageSnapshot === null;
+    if (historyUsesLegacy) legacyHistorySnapshot = localStorage.getItem(legacyHistoryStorageKey);
+    const records = parseHistory(historyUsesLegacy ? legacyHistorySnapshot : historyStorageSnapshot);
+    records.forEach((record) => historyRecords.push(record));
+  } catch {
+    historyStorageBlocked = true;
+    showEventStorageError(historyLoadError, "Не удалось загрузить историю: данные повреждены, имеют неподдерживаемый формат или хранилище недоступно. Запись истории заблокирована, исходные данные не изменены. После восстановления данных или доступа перезагрузите страницу.");
+  }
+  renderHistory();
+}
+
+function saveHistory(nextRecords, errorElement) {
+  if (historyStorageBlocked) {
+    showEventStorageError(errorElement, historyLoadError.textContent);
+    return false;
+  }
+  try {
+    if (localStorage.getItem(historyStorageKey) !== historyStorageSnapshot
+      || (historyUsesLegacy && localStorage.getItem(legacyHistoryStorageKey) !== legacyHistorySnapshot)) {
+      showEventStorageError(errorElement, "История изменилась после загрузки страницы, возможно в другой вкладке. Запись остановлена, чужие изменения сохранены. Обновите страницу перед повторной попыткой; сначала сохраните несохранённый ввод.");
+      return false;
+    }
+    const serialized = JSON.stringify(nextRecords);
+    localStorage.setItem(historyStorageKey, serialized);
+    historyStorageSnapshot = serialized;
+    historyUsesLegacy = false;
+  } catch {
+    showEventStorageError(errorElement, "Не удалось сохранить историю. Добавление или удаление не выполнено. Проверьте доступ к хранилищу и повторите попытку или отмените действие.");
+    return false;
+  }
+  showEventStorageError(errorElement);
+  return true;
+}
+
 function createHistoryCard(record) {
   const card = document.createElement("article");
   card.className = "history-card";
   const copy = document.createElement("div");
   const title = document.createElement("p");
   title.className = "history-title";
-  title.textContent = record.title;
+  title.textContent = historyTitle(record);
   const date = document.createElement("p");
   date.className = "history-date";
   date.textContent = formatDate(record.date);
@@ -239,7 +310,7 @@ function createHistoryCard(record) {
   remove.type = "button";
   remove.className = "history-delete";
   remove.dataset.historyId = record.id;
-  remove.setAttribute("aria-label", `Удалить «${record.title}» из истории, ${formatDate(record.date)}`);
+  remove.setAttribute("aria-label", `Удалить «${historyTitle(record)}» из истории, ${formatDate(record.date)}`);
   remove.append(cardDialog.querySelector(".settings-close svg").cloneNode(true));
   card.append(copy, remove);
   return card;
@@ -257,14 +328,19 @@ function renderHistory() {
     fragment.append(line);
   });
   historyTimeline.replaceChildren(fragment);
-  document.querySelector("#history-empty").hidden = entries.length > 0;
+  document.querySelector("#history-empty").hidden = entries.length > 0 || historyStorageBlocked;
   historyScroll.scrollLeft = scrollLeft;
 }
 
 function addEventHistory() {
   if (!selectedEvent || pendingDeletion || activeDialog !== cardDialog) return;
   const { title, colour, description } = selectedEvent.event;
-  historyRecords.push({ id: `history-${crypto.randomUUID()}`, date: selectedEvent.key, title, colour, description });
+  if (!pendingHistoryRecord) {
+    pendingHistoryRecord = { id: `history-${crypto.randomUUID()}`, date: selectedEvent.key, title, colour, description };
+  }
+  if (!saveHistory([...historyRecords, pendingHistoryRecord], templateNotice)) return;
+  historyRecords.push(pendingHistoryRecord);
+  pendingHistoryRecord = null;
   renderHistory();
   templateNotice.textContent = "Снимок события добавлен в историю. Исходное событие осталось без изменений.";
   templateNotice.hidden = false;
@@ -274,7 +350,8 @@ function openHistoryDelete(button) {
   const record = historyRecords.find((item) => item.id === button.dataset.historyId);
   if (!record) return;
   historyEntryToDelete = record.id;
-  document.querySelector("#history-delete-copy").textContent = `Удалить «${record.title}» (${formatDate(record.date)})? Будет удалён только этот снимок. Исходное событие останется без изменений.`;
+  showEventStorageError(historyDeleteError);
+  document.querySelector("#history-delete-copy").textContent = `Удалить «${historyTitle(record)}» (${formatDate(record.date)})? Будет удалён только этот снимок. Исходное событие останется без изменений.`;
   openDialog(historyDeleteDialog, button, document.querySelector("#cancel-history-delete"));
 }
 
@@ -282,6 +359,7 @@ function confirmHistoryDeletion() {
   if (activeDialog !== historyDeleteDialog || !historyEntryToDelete) return;
   const index = historyRecords.findIndex((item) => item.id === historyEntryToDelete);
   if (index < 0) return;
+  if (!saveHistory(historyRecords.filter((_, position) => position !== index), historyDeleteError)) return;
   const buttons = [...historyTimeline.querySelectorAll(".history-delete")];
   const position = buttons.findIndex((button) => button.dataset.historyId === historyEntryToDelete);
   const nextId = (buttons[position + 1] || buttons[position - 1])?.dataset.historyId;
@@ -670,6 +748,7 @@ function closeDialog() {
   editingEvent = null;
   pendingDeletion = null;
   historyEntryToDelete = null;
+  pendingHistoryRecord = null;
 }
 
 function prepareEventForm(key, event = null) {
@@ -699,6 +778,7 @@ function openCreationForm(key, opener = null, fromList = false) {
 }
 
 function openEventCard(key, index, opener = null, fromList = false) {
+  pendingHistoryRecord = null;
   const event = events[key][index];
   selectedEvent = { key, event, fromList };
   templateNotice.hidden = true;
@@ -944,5 +1024,6 @@ loadYearScale();
 loadYearEvents();
 renderCalendar(currentYear);
 syncYearFilters();
+loadHistory();
 loadThoughts();
 renderThoughts();

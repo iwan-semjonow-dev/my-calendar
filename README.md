@@ -21,7 +21,7 @@ The project is a working yearly prototype in active development. The application
 | Data | Storage | After a page reload |
 |---|---|---|
 | Events | localStorage | Retained between reloads after a successful save |
-| History snapshots | In memory | Lost |
+| History snapshots | localStorage | Retained between reloads after a successful save |
 | Thoughts | localStorage | Retained between reloads |
 | Event templates | localStorage | Retained between reloads |
 | Yearly scale setting | localStorage | Retained between reloads |
@@ -29,7 +29,7 @@ The project is a working yearly prototype in active development. The application
 
 localStorage belongs to the browser and profile used to open the app. It provides neither cloud synchronization nor a backup. Retention depends on storage being available and saving successfully; clearing browser data can remove saved records.
 
-History snapshots are not yet suitable for reliably storing important information: reloading or closing the page loses them. Events are retained after a successful save, but browser storage is not a backup.
+Events and history snapshots are retained after a successful save, but browser storage is not a backup.
 
 The current version has no year switching, weekly mode, backup export, or backup restoration. Thoughts can be added and viewed, but cannot yet be edited or deleted. Full template library management, including editing and deleting templates, is not implemented.
 
