@@ -7,6 +7,7 @@ The project is a working yearly prototype in active development. The application
 ## Current features
 
 - Twelve vertical month columns. The current system year opens when the page loads; previous and next year buttons let you browse other years.
+- Jump to today's local date from any year, scroll it into view, and briefly highlight the cell.
 - Valid dates and weekdays, including leap years, with distinct styling for weekends, past days, and today.
 - Create, view, and edit events, and delete them with confirmation. Events have a date, title, colour, and description, without start or end times.
 - Multiple events on one date, a counter for additional events, and a list of the day's events.

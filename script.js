@@ -1,4 +1,4 @@
-const today = new Date();
+let today = new Date();
 today.setHours(0, 0, 0, 0);
 const currentYear = today.getFullYear();
 let displayedYear = currentYear;
@@ -20,6 +20,8 @@ const monthNamesGenitive = [
 const calendar = document.querySelector(".year-columns");
 const calendarScroll = document.querySelector(".calendar-scroll");
 const yearNavigationButtons = [...document.querySelectorAll("[data-year-nav]")];
+const todayButton = document.querySelector("[data-go-today]");
+let todayFocusTimer = null;
 const app = document.querySelector(".app");
 const creationDialog = document.querySelector("#yearly-event-dialog");
 const cardDialog = document.querySelector("#event-card-dialog");
@@ -736,6 +738,7 @@ function renderCalendar(year) {
 
 function showCalendarYear(year) {
   if (!Number.isInteger(year) || year < minimumYear || year > maximumYear || activeDialog) return;
+  clearTodayFocus();
   const scrollLeft = calendarScroll.scrollLeft;
   displayedYear = year;
   renderCalendar(displayedYear);
@@ -746,6 +749,39 @@ function showCalendarYear(year) {
     const atBoundary = button.dataset.yearNav === "previous" ? year === minimumYear : year === maximumYear;
     button.setAttribute("aria-disabled", String(atBoundary));
   });
+}
+
+function clearTodayFocus() {
+  window.clearTimeout(todayFocusTimer);
+  todayFocusTimer = null;
+  calendar.querySelector(".today-focus")?.classList.remove("today-focus");
+}
+
+function scrollToTodayCell(cell) {
+  const behavior = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth";
+  const cellRect = cell.getBoundingClientRect();
+  const scrollRect = calendarScroll.getBoundingClientRect();
+  calendarScroll.scrollTo({
+    left: calendarScroll.scrollLeft + cellRect.left - scrollRect.left - (calendarScroll.clientWidth - cellRect.width) / 2,
+    behavior,
+  });
+  window.scrollTo({
+    top: window.scrollY + cellRect.top - (window.innerHeight - cellRect.height) / 2,
+    behavior,
+  });
+}
+
+function goToToday() {
+  if (activeDialog) return;
+  today = new Date();
+  today.setHours(0, 0, 0, 0);
+  showCalendarYear(today.getFullYear());
+  const cell = calendar.querySelector(".today");
+  if (!cell) return;
+  todayButton.focus({ preventScroll: true });
+  scrollToTodayCell(cell);
+  cell.classList.add("today-focus");
+  todayFocusTimer = window.setTimeout(clearTodayFocus, 1800);
 }
 
 function openDialog(dialog, opener, focusTarget) {
@@ -1036,6 +1072,7 @@ yearNavigationButtons.forEach((button) => button.addEventListener("click", () =>
 }));
 
 settingsButton.addEventListener("click", openYearSettings);
+todayButton.addEventListener("click", goToToday);
 scaleButtons.forEach((button) => button.addEventListener("click", () => {
   yearScaleDraft = button.dataset.yearScale;
   applyYearScale(yearScaleDraft);
