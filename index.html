@@ -14,7 +14,17 @@
       </header>
       <main>
         <div class="calendar-heading">
-          <h1 id="calendar-title">Годовой календарь <span id="calendar-year"></span></h1>
+          <div class="calendar-title-group">
+            <h1 id="calendar-title">Годовой календарь <span id="calendar-year" aria-live="polite" aria-atomic="true"></span></h1>
+            <div class="year-navigation" role="group" aria-label="Навигация по годам">
+              <button class="nav-button arrow-button" type="button" data-year-nav="previous" aria-label="Предыдущий год">
+                <svg class="year-nav-arrow" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m14.5 5-7 7 7 7" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" /></svg>
+              </button>
+              <button class="nav-button arrow-button" type="button" data-year-nav="next" aria-label="Следующий год">
+                <svg class="year-nav-arrow" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m9.5 5 7 7-7 7" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" /></svg>
+              </button>
+            </div>
+          </div>
           <button class="action-button" type="button" id="open-year-filters" aria-haspopup="dialog" aria-expanded="false" aria-controls="year-filters"><span aria-hidden="true">⌕</span> Фильтры</button>
           <button class="action-button settings-trigger" type="button" id="open-year-settings" aria-haspopup="dialog" aria-expanded="false" aria-controls="year-settings">Настройки</button>
         </div>

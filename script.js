@@ -1,6 +1,9 @@
 const today = new Date();
 today.setHours(0, 0, 0, 0);
 const currentYear = today.getFullYear();
+let displayedYear = currentYear;
+const minimumYear = 1;
+const maximumYear = 9999;
 const weekDays = ["ПН", "ВТ", "СР", "ЧТ", "ПТ", "СБ", "ВС"];
 const events = {};
 const colourNames = {
@@ -15,6 +18,8 @@ const monthNamesGenitive = [
   "июля", "августа", "сентября", "октября", "ноября", "декабря",
 ];
 const calendar = document.querySelector(".year-columns");
+const calendarScroll = document.querySelector(".calendar-scroll");
+const yearNavigationButtons = [...document.querySelectorAll("[data-year-nav]")];
 const app = document.querySelector(".app");
 const creationDialog = document.querySelector("#yearly-event-dialog");
 const cardDialog = document.querySelector("#event-card-dialog");
@@ -542,12 +547,12 @@ function saveEventTemplate() {
 }
 
 function getDateKey(year, monthIndex, day) {
-  return `${year}-${String(monthIndex + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+  return `${String(year).padStart(4, "0")}-${String(monthIndex + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
 function formatDate(key) {
   const [year, month, day] = key.split("-").map(Number);
-  return `${day} ${monthNamesGenitive[month - 1]} ${year} · ${getWeekday(year, month - 1, day)}`;
+  return `${day} ${monthNamesGenitive[month - 1]} ${String(year).padStart(4, "0")} · ${getWeekday(year, month - 1, day)}`;
 }
 
 function updateEventButton(button, key) {
@@ -623,7 +628,7 @@ function renderFilterOptions(titles) {
 
 function syncYearFilters() {
   const titles = new Set(Object.entries(events)
-    .filter(([date]) => Number(date.slice(0, 4)) === currentYear)
+    .filter(([date]) => Number(date.slice(0, 4)) === displayedYear)
     .flatMap(([, dayEvents]) => dayEvents.map((event) => event.title)));
   for (const title of selectedEventFilters) {
     if (!titles.has(title)) selectedEventFilters.delete(title);
@@ -641,12 +646,20 @@ function createEventButton(year, monthIndex, day) {
   return button;
 }
 
+function createLocalDate(year, monthIndex, day) {
+  const date = new Date(0);
+  date.setHours(0, 0, 0, 0);
+  // setFullYear preserves years 0–99 instead of interpreting them as 1900–1999.
+  date.setFullYear(year, monthIndex, day);
+  return date;
+}
+
 function getDaysInMonth(year, monthIndex) {
-  return new Date(year, monthIndex + 1, 0).getDate();
+  return createLocalDate(year, monthIndex + 1, 0).getDate();
 }
 
 function getWeekday(year, monthIndex, day) {
-  const date = new Date(year, monthIndex, day);
+  const date = createLocalDate(year, monthIndex, day);
   return weekDays[(date.getDay() + 6) % 7];
 }
 
@@ -667,7 +680,7 @@ function applyDayState(row, date) {
 function createDayRow(year, monthIndex, day) {
   const row = document.createElement("div");
   row.className = "calendar-cell";
-  applyDayState(row, new Date(year, monthIndex, day));
+  applyDayState(row, createLocalDate(year, monthIndex, day));
 
   const line = document.createElement("div");
   line.className = "day-line";
@@ -715,9 +728,23 @@ function renderMonth(column, year, monthIndex) {
 }
 
 function renderCalendar(year) {
-  document.querySelector("#calendar-year").textContent = year;
+  document.querySelector("#calendar-year").textContent = String(year).padStart(4, "0");
   document.querySelectorAll(".month-column").forEach((column, monthIndex) => {
     renderMonth(column, year, monthIndex);
+  });
+}
+
+function showCalendarYear(year) {
+  if (!Number.isInteger(year) || year < minimumYear || year > maximumYear || activeDialog) return;
+  const scrollLeft = calendarScroll.scrollLeft;
+  displayedYear = year;
+  renderCalendar(displayedYear);
+  // Rows must be attached before applying matching styles to their parent cells.
+  syncYearFilters();
+  calendarScroll.scrollLeft = Math.min(scrollLeft, Math.max(0, calendarScroll.scrollWidth - calendarScroll.clientWidth));
+  yearNavigationButtons.forEach((button) => {
+    const atBoundary = button.dataset.yearNav === "previous" ? year === minimumYear : year === maximumYear;
+    button.setAttribute("aria-disabled", String(atBoundary));
   });
 }
 
@@ -1003,6 +1030,11 @@ document.querySelectorAll("[data-thought-scroll]").forEach((button) => {
   });
 });
 
+yearNavigationButtons.forEach((button) => button.addEventListener("click", () => {
+  showCalendarYear(displayedYear + (button.dataset.yearNav === "previous" ? -1 : 1));
+  button.focus({ preventScroll: true });
+}));
+
 settingsButton.addEventListener("click", openYearSettings);
 scaleButtons.forEach((button) => button.addEventListener("click", () => {
   yearScaleDraft = button.dataset.yearScale;
@@ -1022,8 +1054,7 @@ eventForm.addEventListener("submit", submitEvent);
 
 loadYearScale();
 loadYearEvents();
-renderCalendar(currentYear);
-syncYearFilters();
+showCalendarYear(currentYear);
 loadHistory();
 loadThoughts();
 renderThoughts();

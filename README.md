@@ -6,7 +6,7 @@ The project is a working yearly prototype in active development. The application
 
 ## Current features
 
-- Twelve vertical month columns for the current system year, determined when the page loads.
+- Twelve vertical month columns. The current system year opens when the page loads; previous and next year buttons let you browse other years.
 - Valid dates and weekdays, including leap years, with distinct styling for weekends, past days, and today.
 - Create, view, and edit events, and delete them with confirmation. Events have a date, title, colour, and description, without start or end times.
 - Multiple events on one date, a counter for additional events, and a list of the day's events.
@@ -31,7 +31,7 @@ localStorage belongs to the browser and profile used to open the app. It provide
 
 Events and history snapshots are retained after a successful save, but browser storage is not a backup.
 
-The current version has no year switching, weekly mode, backup export, or backup restoration. Thoughts can be added and viewed, but cannot yet be edited or deleted. Full template library management, including editing and deleting templates, is not implemented.
+The current version has no weekly mode, backup export, or backup restoration. Thoughts can be added and viewed, but cannot yet be edited or deleted. Full template library management, including editing and deleting templates, is not implemented.
 
 ## Run locally
 

@@ -64,6 +64,12 @@ h1 {
 
 .calendar-heading { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 16px; }
 .calendar-heading h1 { margin: 0; }
+.calendar-title-group { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; min-width: 0; }
+.year-navigation { display: flex; gap: 12px; }
+.nav-button { display: inline-flex; min-height: 34px; align-items: center; justify-content: center; gap: 7px; padding: 0 12px; color: #222936; border: 1px solid #e0e4eb; border-radius: 7px; background: #fff; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
+.arrow-button { display: grid; width: 38px; height: 38px; min-height: 38px; place-items: center; padding: 0; line-height: 0; }
+.year-nav-arrow { display: block; width: 16px; height: 16px; overflow: visible; }
+.nav-button[aria-disabled="true"] { opacity: 0.45; cursor: default; }
 .action-button { display: inline-flex; min-height: 34px; align-items: center; justify-content: center; gap: 7px; margin-left: auto; padding: 0 12px; color: #222936; border: 1px solid #e0e4eb; border-radius: 7px; background: #fff; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
 .action-button.filter-active { color: #274ebd; border-color: #94aae7; background: #eef3ff; box-shadow: inset 0 0 0 1px #94aae7; }
 
