@@ -170,6 +170,11 @@
           <label class="yearly-field" for="thought-text">Мысль или возможность
             <textarea id="thought-text" name="text" required maxlength="240" aria-describedby="thought-save-error"></textarea>
           </label>
+          <div class="colour-field">
+            <span id="thought-colour-label">Цвет карточки</span>
+            <input type="hidden" name="colour" value="yellow" />
+            <div class="colour-palette" id="thought-colour-palette" role="group" aria-labelledby="thought-colour-label"></div>
+          </div>
           <p class="thought-storage-error" id="thought-save-error" role="alert" hidden></p>
           <footer class="day-dialog-footer">
             <button class="day-secondary" type="button" data-close-dialog>Отмена</button>
@@ -230,15 +235,12 @@
           <label class="yearly-field" for="yearly-event-name">Название
             <input id="yearly-event-name" name="title" type="text" required maxlength="60" />
           </label>
-          <label class="yearly-field" for="yearly-event-colour">Цвет
-            <select id="yearly-event-colour" name="colour">
-              <option value="study">Синий</option>
-              <option value="work">Зелёный</option>
-              <option value="project">Жёлтый</option>
-              <option value="personal">Розовый</option>
-              <option value="finance">Бирюзовый</option>
-            </select>
-          </label>
+          <div class="colour-field">
+            <span id="event-colour-label">Цвет</span>
+            <input id="yearly-event-colour" type="hidden" name="colour" value="thought-yellow" />
+            <div class="colour-palette" id="event-colour-palette" role="group" aria-labelledby="event-colour-label"></div>
+            <p class="legacy-colour" id="event-legacy-colour" role="status" hidden></p>
+          </div>
           <label class="yearly-field" for="yearly-event-description">Описание
             <textarea id="yearly-event-description" name="description" maxlength="240" placeholder="Необязательно"></textarea>
           </label>

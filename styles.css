@@ -398,22 +398,29 @@ h1 {
 .thought-track { display: flex; width: max-content; gap: 16px; padding: 2px 2px 8px; }
 .thought { position: relative; width: 172px; min-height: 100px; flex: 0 0 172px; padding: 15px 13px 19px; color: #1e2731; font-size: 12px; font-weight: 550; line-height: 1.48; overflow-wrap: anywhere; white-space: pre-wrap; box-shadow: 0 3px 5px rgba(29, 42, 60, 0.13); }
 .thought::after { position: absolute; right: 11px; bottom: 10px; content: "☆"; font-size: 15px; font-weight: 400; }
-.thought.yellow, .event.thought-yellow, .day-event-dot.thought-yellow { background: #ffe39a; }
-.thought.amber, .event.thought-amber, .day-event-dot.thought-amber { background: #ffd08a; }
-.thought.peach, .event.thought-peach, .day-event-dot.thought-peach { background: #ffd5bb; }
-.thought.coral, .event.thought-coral, .day-event-dot.thought-coral { background: #ffb9a8; }
-.thought.pink, .event.thought-pink, .day-event-dot.thought-pink { background: #ffcac9; }
-.thought.rose, .event.thought-rose, .day-event-dot.thought-rose { background: #f5c6d4; }
-.thought.violet, .event.thought-violet, .day-event-dot.thought-violet { background: #e3d2fa; }
-.thought.indigo, .event.thought-indigo, .day-event-dot.thought-indigo { background: #c9cdf9; }
-.thought.blue, .event.thought-blue, .day-event-dot.thought-blue { background: #cfe0fb; }
-.thought.sky, .event.thought-sky, .day-event-dot.thought-sky { background: #c9e7f7; }
-.thought.mint, .event.thought-mint, .day-event-dot.thought-mint { background: #c8f0ee; }
-.thought.teal, .event.thought-teal, .day-event-dot.thought-teal { background: #bfe8df; }
-.thought.green, .event.thought-green, .day-event-dot.thought-green { background: #cdf0ad; }
-.thought.lime, .event.thought-lime, .day-event-dot.thought-lime { background: #d9ed9a; }
-.thought.sand, .event.thought-sand, .day-event-dot.thought-sand { background: #eadcbf; }
-.thought.slate, .event.thought-slate, .day-event-dot.thought-slate { background: #d9dfe7; }
+.colour-field { display: grid; gap: 8px; color: #435065; font-size: 12px; font-weight: 600; }
+.colour-palette { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 8px; }
+.colour-option { width: 100%; aspect-ratio: 1; min-height: 28px; padding: 0; border: 1px solid rgba(57, 70, 88, 0.18); border-radius: 7px; font-weight: 600; cursor: pointer; }
+.colour-option[aria-pressed="true"] { border-color: #263142; box-shadow: 0 0 0 2px #fff, 0 0 0 4px #263142; }
+.colour-option:focus-visible { outline: 2px solid #315be9; outline-offset: 3px; }
+.legacy-colour { margin: 0; color: #718095; font-size: 11px; font-weight: 600; line-height: 1.35; }
+
+.thought.yellow, .event.thought-yellow, .day-event-dot.thought-yellow, .colour-option.yellow { background: #ffe39a; }
+.thought.amber, .event.thought-amber, .day-event-dot.thought-amber, .colour-option.amber { background: #ffd08a; }
+.thought.peach, .event.thought-peach, .day-event-dot.thought-peach, .colour-option.peach { background: #ffd5bb; }
+.thought.coral, .event.thought-coral, .day-event-dot.thought-coral, .colour-option.coral { background: #ffb9a8; }
+.thought.pink, .event.thought-pink, .day-event-dot.thought-pink, .colour-option.pink { background: #ffcac9; }
+.thought.rose, .event.thought-rose, .day-event-dot.thought-rose, .colour-option.rose { background: #f5c6d4; }
+.thought.violet, .event.thought-violet, .day-event-dot.thought-violet, .colour-option.violet { background: #e3d2fa; }
+.thought.indigo, .event.thought-indigo, .day-event-dot.thought-indigo, .colour-option.indigo { background: #c9cdf9; }
+.thought.blue, .event.thought-blue, .day-event-dot.thought-blue, .colour-option.blue { background: #cfe0fb; }
+.thought.sky, .event.thought-sky, .day-event-dot.thought-sky, .colour-option.sky { background: #c9e7f7; }
+.thought.mint, .event.thought-mint, .day-event-dot.thought-mint, .colour-option.mint { background: #c8f0ee; }
+.thought.teal, .event.thought-teal, .day-event-dot.thought-teal, .colour-option.teal { background: #bfe8df; }
+.thought.green, .event.thought-green, .day-event-dot.thought-green, .colour-option.green { background: #cdf0ad; }
+.thought.lime, .event.thought-lime, .day-event-dot.thought-lime, .colour-option.lime { background: #d9ed9a; }
+.thought.sand, .event.thought-sand, .day-event-dot.thought-sand, .colour-option.sand { background: #eadcbf; }
+.thought.slate, .event.thought-slate, .day-event-dot.thought-slate, .colour-option.slate { background: #d9dfe7; }
 .thought-empty { margin: 0; padding: 16px; color: #657081; border: 1px dashed #c8cdd6; font-size: 12px; text-align: center; }
 .carousel-control { display: grid; width: 38px; height: 38px; min-height: 38px; align-self: center; justify-self: center; place-items: center; padding: 0; color: #3f4a5a; border: 1px solid #dfe4ea; border-radius: 8px; background: #fff; cursor: pointer; transform: translateY(-7px); }
 .carousel-control:hover { border-color: #bfc8d4; background: #f5f7fa; }

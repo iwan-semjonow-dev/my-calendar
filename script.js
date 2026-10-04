@@ -6,6 +6,24 @@ const minimumYear = 1;
 const maximumYear = 9999;
 const weekDays = ["ПН", "ВТ", "СР", "ЧТ", "ПТ", "СБ", "ВС"];
 const events = {};
+const calendarPalette = [
+  { value: "yellow", label: "Солнечный" },
+  { value: "amber", label: "Янтарный" },
+  { value: "peach", label: "Персиковый" },
+  { value: "coral", label: "Коралловый" },
+  { value: "pink", label: "Розовый" },
+  { value: "rose", label: "Пудровый" },
+  { value: "violet", label: "Фиолетовый" },
+  { value: "indigo", label: "Индиго" },
+  { value: "blue", label: "Голубой" },
+  { value: "sky", label: "Небесный" },
+  { value: "mint", label: "Мятный" },
+  { value: "teal", label: "Бирюзовый" },
+  { value: "green", label: "Зелёный" },
+  { value: "lime", label: "Лаймовый" },
+  { value: "sand", label: "Песочный" },
+  { value: "slate", label: "Серый" },
+];
 const colourNames = {
   study: "Синий",
   work: "Зелёный",
@@ -43,14 +61,12 @@ const filterSummary = document.querySelector("#filter-summary");
 const resetFiltersButton = document.querySelector("#reset-year-filters");
 const selectedEventFilters = new Set();
 const thoughtStorageKey = "my-calendar-year-thoughts-v3";
-const thoughtColours = ["", "yellow", "amber", "peach", "coral", "pink", "rose", "violet", "indigo", "blue", "sky", "mint", "teal", "green", "lime", "sand", "slate"];
+const thoughtColours = ["", ...calendarPalette.map(({ value }) => value)];
 const templateStorageKey = "my-calendar-year-templates-v2";
-const templateColourNames = {
-  "thought-yellow": "Солнечный", "thought-amber": "Янтарный", "thought-peach": "Персиковый", "thought-coral": "Коралловый",
-  "thought-pink": "Розовый", "thought-rose": "Пудровый", "thought-violet": "Фиолетовый", "thought-indigo": "Индиго",
-  "thought-blue": "Голубой", "thought-sky": "Небесный", "thought-mint": "Мятный", "thought-teal": "Бирюзовый",
-  "thought-green": "Зелёный", "thought-lime": "Лаймовый", "thought-sand": "Песочный", "thought-slate": "Серый",
-};
+const templateColourNames = Object.fromEntries(calendarPalette.map(({ value, label }) => [toEventColour(value), label]));
+const eventColourPalette = document.querySelector("#event-colour-palette");
+const thoughtColourPalette = document.querySelector("#thought-colour-palette");
+const legacyEventColour = document.querySelector("#event-legacy-colour");
 const templateSelect = document.querySelector("#yearly-event-template");
 const templateField = document.querySelector("#yearly-event-template-field");
 const templateHelp = document.querySelector("#yearly-event-template-help");
@@ -418,6 +434,7 @@ function renderThoughts() {
 
 function openThoughtDialog() {
   thoughtForm.reset();
+  setThoughtColour("yellow");
   thoughtText.setCustomValidity("");
   pendingThought = null;
   showThoughtError(thoughtSaveError, thoughtStorageBlocked ? thoughtLoadError.textContent : "");
@@ -441,6 +458,7 @@ function submitThought(event) {
     }
     if (!pendingThought) pendingThought = { id: `thought-${crypto.randomUUID()}`, text, colour: "yellow" };
     pendingThought.text = text;
+    pendingThought.colour = thoughtForm.elements.colour.value;
     const nextThoughts = [...thoughts, pendingThought];
     const serialized = JSON.stringify(nextThoughts);
     localStorage.setItem(thoughtStorageKey, serialized);
@@ -499,17 +517,41 @@ function renderTemplateOptions() {
     : "Сначала откройте событие и нажмите «Сохранить как шаблон».");
 }
 
+function toEventColour(colour) {
+  return `thought-${colour}`;
+}
+
+function createColourPalette(container, toValue, onSelect) {
+  container.replaceChildren(...calendarPalette.map(({ value, label }) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = `colour-option ${value}`;
+    button.dataset.colour = toValue(value);
+    button.setAttribute("aria-label", label);
+    button.title = label;
+    button.setAttribute("aria-pressed", "false");
+    button.addEventListener("click", () => onSelect(button.dataset.colour));
+    return button;
+  }));
+}
+
+function updateColourPalette(container, colour) {
+  container.querySelectorAll("button").forEach((button) => {
+    button.setAttribute("aria-pressed", String(button.dataset.colour === colour));
+  });
+}
+
+function setThoughtColour(colour) {
+  thoughtForm.elements.colour.value = colour;
+  updateColourPalette(thoughtColourPalette, colour);
+}
+
 function setEventColour(colour) {
-  const select = eventForm.elements.colour;
-  select.querySelectorAll("[data-template-colour]").forEach((option) => option.remove());
-  if (Object.hasOwn(templateColourNames, colour)) {
-    const option = document.createElement("option");
-    option.value = colour;
-    option.textContent = `${getEventColourName(colour)} (сохранённый цвет)`;
-    option.dataset.templateColour = "";
-    select.append(option);
-  }
-  select.value = colour;
+  eventForm.elements.colour.value = colour;
+  updateColourPalette(eventColourPalette, colour);
+  const isLegacy = Object.hasOwn(colourNames, colour);
+  legacyEventColour.hidden = !isLegacy;
+  legacyEventColour.textContent = isLegacy ? `Текущий цвет: ${colourNames[colour]} (сохранённый). Он останется, пока вы не выберете другой.` : "";
 }
 
 function applyEventTemplate() {
@@ -823,7 +865,7 @@ function prepareEventForm(key, event = null) {
   eventForm.elements.description.maxLength = Math.max(240, event?.description.length || 0);
   templateField.hidden = Boolean(event);
   if (!event) renderTemplateOptions();
-  setEventColour(event ? event.colour : "study");
+  setEventColour(event ? event.colour : toEventColour("yellow"));
   nameInput.setCustomValidity("");
   document.querySelector("#yearly-event-title").textContent = event ? "Редактировать событие" : "Новое событие";
   eventForm.querySelector("[type=submit]").textContent = event ? "Сохранить изменения" : "Создать событие";
@@ -1089,6 +1131,8 @@ document.addEventListener("keydown", handleDialogKeydown);
 nameInput.addEventListener("input", () => nameInput.setCustomValidity(""));
 eventForm.addEventListener("submit", submitEvent);
 
+createColourPalette(thoughtColourPalette, (colour) => colour, setThoughtColour);
+createColourPalette(eventColourPalette, toEventColour, setEventColour);
 loadYearScale();
 loadYearEvents();
 showCalendarYear(currentYear);
