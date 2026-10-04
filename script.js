@@ -80,6 +80,9 @@ const thoughtScroll = document.querySelector("#thought-scroll");
 const thoughtTrack = document.querySelector("#thought-track");
 const thoughtLoadError = document.querySelector("#thought-load-error");
 const thoughtSaveError = document.querySelector("#thought-save-error");
+const thoughtOrderError = document.querySelector("#thought-order-error");
+let draggedThoughtId = null;
+let suppressThoughtClick = false;
 const thoughtDeleteButton = document.querySelector("#delete-thought");
 const thoughtDeleteDialog = document.querySelector("#thought-delete-dialog");
 const thoughtDeleteError = document.querySelector("#thought-delete-error");
@@ -431,6 +434,8 @@ function renderThoughts() {
     const card = document.createElement("article");
     card.className = `thought ${thought.colour}`.trim();
     card.dataset.thoughtId = thought.id;
+    card.draggable = true;
+    card.title = "Нажмите, чтобы отредактировать. Перетащите, чтобы изменить порядок.";
     card.tabIndex = 0;
     card.setAttribute("role", "button");
     card.setAttribute("aria-label", `Редактировать мысль: ${thought.text}`);
@@ -444,6 +449,67 @@ function renderThoughts() {
 
 function getThoughtCard(id) {
   return [...thoughtTrack.querySelectorAll("[data-thought-id]")].find((card) => card.dataset.thoughtId === id);
+}
+
+function clearThoughtDropTarget() {
+  thoughtTrack.querySelectorAll(".drag-over").forEach((card) => card.classList.remove("drag-over", "drop-after"));
+}
+
+function endThoughtDrag() {
+  draggedThoughtId = null;
+  thoughtTrack.querySelector(".dragging")?.classList.remove("dragging");
+  clearThoughtDropTarget();
+}
+
+function getThoughtDropTarget(clientX) {
+  const cards = [...thoughtTrack.querySelectorAll("[data-thought-id]")]
+    .filter((card) => card.dataset.thoughtId !== draggedThoughtId);
+  const before = cards.find((card) => {
+    const rect = card.getBoundingClientRect();
+    return clientX < rect.left + rect.width / 2;
+  });
+  return { card: before || cards.at(-1), after: !before };
+}
+
+function startThoughtDrag(event) {
+  const card = event.target.closest("[data-thought-id]");
+  if (!card || activeDialog) return;
+  draggedThoughtId = card.dataset.thoughtId;
+  suppressThoughtClick = true;
+  event.dataTransfer.setData("text/plain", draggedThoughtId);
+  event.dataTransfer.effectAllowed = "move";
+  card.classList.add("dragging");
+  showThoughtError(thoughtOrderError, "");
+}
+
+function previewThoughtDrop(event) {
+  if (draggedThoughtId === null) return;
+  event.preventDefault();
+  event.dataTransfer.dropEffect = "move";
+  clearThoughtDropTarget();
+  const { card, after } = getThoughtDropTarget(event.clientX);
+  if (card) {
+    card.classList.add("drag-over");
+    card.classList.toggle("drop-after", after);
+  }
+}
+
+function dropThought(event) {
+  if (draggedThoughtId === null) return;
+  event.preventDefault();
+  const id = draggedThoughtId;
+  const moved = thoughts.find((thought) => thought.id === id);
+  const { card, after } = getThoughtDropTarget(event.clientX);
+  endThoughtDrag();
+  if (!moved || !card) return;
+  const nextThoughts = thoughts.filter((thought) => thought.id !== id);
+  const index = nextThoughts.findIndex((thought) => thought.id === card.dataset.thoughtId);
+  if (index < 0) return;
+  nextThoughts.splice(index + Number(after), 0, moved);
+  if (nextThoughts.every((thought, position) => thought.id === thoughts[position].id)) return;
+  if (!saveThoughts(nextThoughts, thoughtOrderError)) return;
+  renderThoughts();
+  getThoughtCard(id)?.focus({ preventScroll: true });
 }
 
 function openThoughtDialog(id = null) {
@@ -1164,7 +1230,17 @@ resetFiltersButton.addEventListener("click", () => {
 });
 
 thoughtAddButton.addEventListener("click", () => openThoughtDialog());
+thoughtTrack.addEventListener("dragstart", startThoughtDrag);
+thoughtScroll.addEventListener("dragover", previewThoughtDrop);
+thoughtScroll.addEventListener("drop", dropThought);
+thoughtScroll.addEventListener("dragleave", (event) => {
+  if (!thoughtScroll.contains(event.relatedTarget)) clearThoughtDropTarget();
+});
+thoughtTrack.addEventListener("dragend", endThoughtDrag);
+// A new pointer gesture is a deliberate click; the release ending a drag is not.
+thoughtTrack.addEventListener("pointerdown", () => { suppressThoughtClick = false; });
 thoughtTrack.addEventListener("click", (event) => {
+  if (suppressThoughtClick) return;
   const card = event.target.closest("[data-thought-id]");
   if (card) openThoughtDialog(card.dataset.thoughtId);
 });

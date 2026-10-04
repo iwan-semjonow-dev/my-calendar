@@ -398,9 +398,13 @@ h1 {
 .thought-track { display: flex; width: max-content; gap: 16px; padding: 2px 2px 8px; }
 .thought { position: relative; width: 172px; min-height: 100px; flex: 0 0 172px; padding: 15px 13px 19px; color: #1e2731; font-size: 12px; font-weight: 550; line-height: 1.48; overflow-wrap: anywhere; white-space: pre-wrap; box-shadow: 0 3px 5px rgba(29, 42, 60, 0.13); }
 .thought::after { position: absolute; right: 11px; bottom: 10px; content: "☆"; font-size: 15px; font-weight: 400; }
-.thought[role="button"] { cursor: pointer; }
-.thought[role="button"]:hover { outline: 1px solid rgba(58, 76, 98, 0.33); outline-offset: 2px; }
+.thought[draggable="true"] { cursor: grab; transition: transform 0.14s ease, opacity 0.14s ease, outline-color 0.14s ease; }
+.thought[draggable="true"]:hover { transform: translateY(-2px); outline: 1px solid rgba(58, 76, 98, 0.33); outline-offset: 2px; }
 .thought[role="button"]:focus-visible { outline: 2px solid #315be9; outline-offset: 3px; }
+.thought.dragging { opacity: 0.38; cursor: grabbing; }
+.thought.drag-over { outline: 2px dashed #315be9; outline-offset: 4px; }
+.thought.drag-over::before { position: absolute; top: 0; bottom: 0; left: -8px; width: 3px; content: ""; background: #315be9; pointer-events: none; }
+.thought.drag-over.drop-after::before { right: -8px; left: auto; }
 .thought-delete-copy { overflow-wrap: anywhere; white-space: pre-wrap; }
 .colour-field { display: grid; gap: 8px; color: #435065; font-size: 12px; font-weight: 600; }
 .colour-palette { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 8px; }

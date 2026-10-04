@@ -13,6 +13,7 @@ The project is a working yearly prototype in active development. The application
 - Multiple events on one date, a counter for additional events, and a list of the day's events.
 - Filters by event title that highlight matches and dim other events while keeping every date in the grid.
 - Create undated thoughts in a horizontal card strip above the calendar, edit their text and colour, and delete them with confirmation.
+- Reorder thoughts by dragging cards within the strip; the order is retained after a successful save.
 - A shared 16-colour palette for creating thoughts and for creating and editing events.
 - Save an event's title, colour, and description as an independent template. Apply a template when creating an event, keep the selected date, and adjust the fields before creation.
 - Manually add independent event snapshots to a chronological history strip. Editing or deleting the original event does not change its snapshots. Deleting a snapshot requires confirmation.
