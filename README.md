@@ -12,7 +12,7 @@ The project is a working yearly prototype in active development. The application
 - Create, view, and edit events, and delete them with confirmation. Events have a date, title, colour, and description, without start or end times.
 - Multiple events on one date, a counter for additional events, and a list of the day's events.
 - Filters by event title that highlight matches and dim other events while keeping every date in the grid.
-- Add undated thoughts to a horizontal card strip above the calendar.
+- Create undated thoughts in a horizontal card strip above the calendar, edit their text and colour, and delete them with confirmation.
 - A shared 16-colour palette for creating thoughts and for creating and editing events.
 - Save an event's title, colour, and description as an independent template. Apply a template when creating an event, keep the selected date, and adjust the fields before creation.
 - Manually add independent event snapshots to a chronological history strip. Editing or deleting the original event does not change its snapshots. Deleting a snapshot requires confirmation.
@@ -33,7 +33,7 @@ localStorage belongs to the browser and profile used to open the app. It provide
 
 Events and history snapshots are retained after a successful save, but browser storage is not a backup.
 
-The current version has no weekly mode, backup export, or backup restoration. Thoughts can be added and viewed, but cannot yet be edited or deleted. Full template library management, including editing and deleting templates, is not implemented.
+The current version has no weekly mode, backup export, or backup restoration. Full template library management, including editing and deleting templates, is not implemented.
 
 ## Run locally
 

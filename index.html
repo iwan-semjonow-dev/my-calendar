@@ -177,10 +177,27 @@
           </div>
           <p class="thought-storage-error" id="thought-save-error" role="alert" hidden></p>
           <footer class="day-dialog-footer">
+            <button class="day-secondary" id="delete-thought" type="button" hidden>Удалить</button>
             <button class="day-secondary" type="button" data-close-dialog>Отмена</button>
             <button class="day-primary" type="submit">Сохранить мысль</button>
           </footer>
         </form>
+      </section>
+    </div>
+    <div class="day-backdrop" id="thought-delete-dialog" role="dialog" aria-modal="true" aria-labelledby="thought-delete-title" aria-describedby="thought-delete-copy" hidden>
+      <section class="day-dialog">
+        <header class="day-dialog-header">
+          <h2 id="thought-delete-title">Удалить мысль?</h2>
+          <button class="settings-close" type="button" data-close-dialog aria-label="Закрыть подтверждение">
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 6 18 18M18 6 6 18" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="2.2" /></svg>
+          </button>
+        </header>
+        <p class="day-dialog-help thought-delete-copy" id="thought-delete-copy"></p>
+        <p class="thought-storage-error" id="thought-delete-error" role="alert" hidden></p>
+        <footer class="day-dialog-footer">
+          <button class="day-secondary" id="cancel-thought-delete" type="button" data-close-dialog>Отмена</button>
+          <button class="day-primary" id="confirm-thought-delete" type="button">Удалить</button>
+        </footer>
       </section>
     </div>
     <div class="day-backdrop filters-backdrop" id="year-filters" role="dialog" aria-modal="true" aria-labelledby="year-filters-title" aria-describedby="year-filters-help" hidden>

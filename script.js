@@ -80,6 +80,10 @@ const thoughtScroll = document.querySelector("#thought-scroll");
 const thoughtTrack = document.querySelector("#thought-track");
 const thoughtLoadError = document.querySelector("#thought-load-error");
 const thoughtSaveError = document.querySelector("#thought-save-error");
+const thoughtDeleteButton = document.querySelector("#delete-thought");
+const thoughtDeleteDialog = document.querySelector("#thought-delete-dialog");
+const thoughtDeleteError = document.querySelector("#thought-delete-error");
+let activeThoughtId = null;
 let thoughts = [];
 let thoughtStorageSnapshot = null;
 let thoughtStorageBlocked = false;
@@ -408,7 +412,7 @@ function parseThoughts(raw) {
     ids.add(item.id);
     return true;
   })) throw new Error("Invalid thoughts data");
-  return items.map(({ id, text, colour }) => ({ id, text, colour }));
+  return items.map((item) => ({ ...item }));
 }
 
 function loadThoughts() {
@@ -422,23 +426,71 @@ function loadThoughts() {
 }
 
 function renderThoughts() {
+  const scrollLeft = thoughtScroll.scrollLeft;
   thoughtTrack.replaceChildren(...thoughts.map((thought) => {
     const card = document.createElement("article");
     card.className = `thought ${thought.colour}`.trim();
     card.dataset.thoughtId = thought.id;
+    card.tabIndex = 0;
+    card.setAttribute("role", "button");
+    card.setAttribute("aria-label", `Редактировать мысль: ${thought.text}`);
+    card.setAttribute("aria-haspopup", "dialog");
     card.textContent = thought.text;
     return card;
   }));
   document.querySelector("#thought-empty").hidden = thoughts.length > 0 || thoughtStorageBlocked;
+  thoughtScroll.scrollLeft = Math.min(scrollLeft, Math.max(0, thoughtScroll.scrollWidth - thoughtScroll.clientWidth));
 }
 
-function openThoughtDialog() {
+function getThoughtCard(id) {
+  return [...thoughtTrack.querySelectorAll("[data-thought-id]")].find((card) => card.dataset.thoughtId === id);
+}
+
+function openThoughtDialog(id = null) {
+  const thought = thoughts.find((item) => item.id === id);
+  if (id !== null && !thought) return;
+  activeThoughtId = thought?.id ?? null;
   thoughtForm.reset();
-  setThoughtColour("yellow");
+  thoughtText.maxLength = Math.max(240, thought?.text.length || 0);
+  thoughtText.value = thought?.text ?? "";
+  setThoughtColour(thought?.colour ?? "yellow");
+  document.querySelector("#thought-dialog-title").textContent = thought ? "Редактировать мысль" : "Новая мысль";
+  document.querySelector("#thought-dialog-help").textContent = thought
+    ? "Измените текст и цвет или удалите мысль. Её место в ленте сохраняется."
+    : "Мысль сохраняется в этом браузере без даты, времени и приоритета — только в верхней ленте.";
+  thoughtForm.querySelector('[type="submit"]').textContent = thought ? "Сохранить изменения" : "Сохранить мысль";
+  thoughtDeleteButton.hidden = !thought;
   thoughtText.setCustomValidity("");
   pendingThought = null;
   showThoughtError(thoughtSaveError, thoughtStorageBlocked ? thoughtLoadError.textContent : "");
-  openDialog(thoughtDialog, thoughtAddButton, thoughtText);
+  openDialog(thoughtDialog, getThoughtCard(activeThoughtId) || thoughtAddButton, thoughtText);
+}
+
+function saveThoughts(nextThoughts, errorElement) {
+  if (thoughtStorageBlocked) {
+    showThoughtError(errorElement, thoughtLoadError.textContent);
+    return false;
+  }
+  try {
+    if (localStorage.getItem(thoughtStorageKey) !== thoughtStorageSnapshot) {
+      showThoughtError(errorElement, "Сохранённые мысли изменились после загрузки страницы. Скопируйте введённый текст и перезагрузите страницу, чтобы не затереть изменения.");
+      return false;
+    }
+    const serialized = JSON.stringify(nextThoughts);
+    localStorage.setItem(thoughtStorageKey, serialized);
+    thoughts = nextThoughts;
+    thoughtStorageSnapshot = serialized;
+  } catch {
+    showThoughtError(errorElement, "Не удалось сохранить изменения мыслей. Исходные записи не изменены. Проверьте доступ к хранилищу и свободное место, затем повторите попытку.");
+    return false;
+  }
+  return true;
+}
+
+function finishThoughtChange(focusId) {
+  renderThoughts();
+  dialogOpener = getThoughtCard(focusId) || thoughtAddButton;
+  closeDialog();
 }
 
 function submitThought(event) {
@@ -447,31 +499,41 @@ function submitThought(event) {
   const text = thoughtText.value.trim();
   thoughtText.setCustomValidity(text ? "" : "Введите текст мысли.");
   if (!thoughtForm.reportValidity()) return;
-  if (thoughtStorageBlocked) {
-    showThoughtError(thoughtSaveError, thoughtLoadError.textContent);
-    return;
+  const colour = thoughtForm.elements.colour.value;
+  const isEditing = activeThoughtId !== null;
+  let nextThoughts;
+  if (isEditing) {
+    if (!thoughts.some((item) => item.id === activeThoughtId)) return;
+    nextThoughts = thoughts.map((item) => item.id === activeThoughtId ? { ...item, text, colour } : item);
+  } else {
+    if (!pendingThought) pendingThought = { id: `thought-${crypto.randomUUID()}` };
+    nextThoughts = [...thoughts, { ...pendingThought, text, colour }];
   }
-  try {
-    if (localStorage.getItem(thoughtStorageKey) !== thoughtStorageSnapshot) {
-      showThoughtError(thoughtSaveError, "Сохранённые мысли изменились после загрузки страницы. Скопируйте введённый текст и перезагрузите страницу, чтобы не затереть изменения.");
-      return;
-    }
-    if (!pendingThought) pendingThought = { id: `thought-${crypto.randomUUID()}`, text, colour: "yellow" };
-    pendingThought.text = text;
-    pendingThought.colour = thoughtForm.elements.colour.value;
-    const nextThoughts = [...thoughts, pendingThought];
-    const serialized = JSON.stringify(nextThoughts);
-    localStorage.setItem(thoughtStorageKey, serialized);
-    thoughts = nextThoughts;
-    thoughtStorageSnapshot = serialized;
-  } catch {
-    showThoughtError(thoughtSaveError, "Не удалось сохранить мысль. Текст остался в форме. Проверьте доступ к хранилищу и свободное место, затем попробуйте сохранить ещё раз.");
-    return;
-  }
-  pendingThought = null;
-  renderThoughts();
-  closeDialog();
-  thoughtScroll.scrollTo({ left: thoughtScroll.scrollWidth, behavior: "instant" });
+  if (!saveThoughts(nextThoughts, thoughtSaveError)) return;
+  finishThoughtChange(activeThoughtId);
+  if (!isEditing) thoughtScroll.scrollTo({ left: thoughtScroll.scrollWidth, behavior: "instant" });
+}
+
+function requestThoughtDeletion() {
+  const thought = thoughts.find((item) => item.id === activeThoughtId);
+  if (!thought || activeDialog !== thoughtDialog) return;
+  document.querySelector("#thought-delete-copy").textContent = `Удалить мысль «${thought.text}»?`;
+  showThoughtError(thoughtDeleteError, "");
+  openDialog(thoughtDeleteDialog, null, document.querySelector("#cancel-thought-delete"));
+}
+
+function cancelThoughtDeletion() {
+  openDialog(thoughtDialog, null, thoughtDeleteButton);
+}
+
+function confirmThoughtDeletion() {
+  if (activeDialog !== thoughtDeleteDialog) return;
+  const index = thoughts.findIndex((item) => item.id === activeThoughtId);
+  if (index < 0) return;
+  const nextId = thoughts[index + 1]?.id ?? thoughts[index - 1]?.id;
+  const nextThoughts = thoughts.filter((item) => item.id !== activeThoughtId);
+  if (!saveThoughts(nextThoughts, thoughtDeleteError)) return;
+  finishThoughtChange(nextId);
 }
 
 function getEventColourName(colour) {
@@ -854,6 +916,8 @@ function closeDialog() {
   pendingDeletion = null;
   historyEntryToDelete = null;
   pendingHistoryRecord = null;
+  activeThoughtId = null;
+  pendingThought = null;
 }
 
 function prepareEventForm(key, event = null) {
@@ -957,7 +1021,8 @@ function confirmDeletion() {
 }
 
 function dismissDialog() {
-  if (activeDialog === creationDialog && editingEvent) cancelEditing();
+  if (activeDialog === thoughtDeleteDialog) cancelThoughtDeletion();
+  else if (activeDialog === creationDialog && editingEvent) cancelEditing();
   else if (activeDialog === cardDialog && pendingDeletion) cancelDeletion();
   else closeDialog();
 }
@@ -1098,7 +1163,19 @@ resetFiltersButton.addEventListener("click", () => {
   (filterList.querySelector("input") || filtersDialog.querySelector(".filters-done")).focus();
 });
 
-thoughtAddButton.addEventListener("click", openThoughtDialog);
+thoughtAddButton.addEventListener("click", () => openThoughtDialog());
+thoughtTrack.addEventListener("click", (event) => {
+  const card = event.target.closest("[data-thought-id]");
+  if (card) openThoughtDialog(card.dataset.thoughtId);
+});
+thoughtTrack.addEventListener("keydown", (event) => {
+  if ((event.key === "Enter" || event.key === " ") && event.target.matches("[data-thought-id]")) {
+    event.preventDefault();
+    openThoughtDialog(event.target.dataset.thoughtId);
+  }
+});
+thoughtDeleteButton.addEventListener("click", requestThoughtDeletion);
+document.querySelector("#confirm-thought-delete").addEventListener("click", confirmThoughtDeletion);
 thoughtText.addEventListener("input", () => thoughtText.setCustomValidity(""));
 thoughtForm.addEventListener("submit", submitThought);
 document.querySelectorAll("[data-thought-scroll]").forEach((button) => {
@@ -1121,7 +1198,7 @@ scaleButtons.forEach((button) => button.addEventListener("click", () => {
 }));
 document.querySelector("#save-year-settings").addEventListener("click", saveYearSettings);
 
-for (const dialog of [creationDialog, cardDialog, listDialog, filtersDialog, thoughtDialog, historyDeleteDialog, settingsDialog]) {
+for (const dialog of [creationDialog, cardDialog, listDialog, filtersDialog, thoughtDialog, thoughtDeleteDialog, historyDeleteDialog, settingsDialog]) {
   dialog.addEventListener("click", (event) => {
     if (event.target === dialog || event.target.closest("[data-close-dialog]")) dismissDialog();
     else if (event.target.closest("[data-back-to-list]")) openDayEvents(listDate);
