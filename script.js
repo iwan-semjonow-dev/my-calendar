@@ -48,6 +48,7 @@ const dayEventList = document.querySelector("#day-event-list");
 const createFromList = document.querySelector("#create-event-from-list");
 const eventForm = document.querySelector("#yearly-event-form");
 const nameInput = document.querySelector("#yearly-event-name");
+const placedThoughtText = document.querySelector("#yearly-placed-thought-text");
 const editButton = document.querySelector("#edit-event");
 const deleteButton = document.querySelector("#delete-event");
 const cardActions = document.querySelector("#event-card-actions");
@@ -61,9 +62,15 @@ const filterSummary = document.querySelector("#filter-summary");
 const resetFiltersButton = document.querySelector("#reset-year-filters");
 const selectedEventFilters = new Set();
 const thoughtStorageKey = "my-calendar-year-thoughts-v3";
+const placementStorageKey = "my-calendar-year-thought-placements-v2";
+let thoughtPlacements = [];
+let placementStorageSnapshot = null;
+let placementStorageBlocked = false;
+const placedEvents = new WeakMap();
 const thoughtColours = ["", ...calendarPalette.map(({ value }) => value)];
 const templateStorageKey = "my-calendar-year-templates-v2";
 const templateColourNames = Object.fromEntries(calendarPalette.map(({ value, label }) => [toEventColour(value), label]));
+templateColourNames["thought-"] = "Без цвета";
 const eventColourPalette = document.querySelector("#event-colour-palette");
 const thoughtColourPalette = document.querySelector("#thought-colour-palette");
 const legacyEventColour = document.querySelector("#event-legacy-colour");
@@ -163,7 +170,7 @@ function parseYearEvents(raw) {
 
 function serializeYearEvents(state) {
   return JSON.stringify(Object.fromEntries(Object.entries(state).map(([date, dayEvents]) => [date,
-    dayEvents.map((event) => {
+    dayEvents.filter((event) => !placedEvents.has(event)).map((event) => {
       const record = [...(storedEventRecords.get(event) || ["", "", ""])];
       record[0] = event.title;
       record[1] = event.colour;
@@ -421,11 +428,129 @@ function parseThoughts(raw) {
 function loadThoughts() {
   try {
     thoughtStorageSnapshot = localStorage.getItem(thoughtStorageKey);
-    thoughts = parseThoughts(thoughtStorageSnapshot);
+    thoughts = undatedThoughts(parseThoughts(thoughtStorageSnapshot));
   } catch {
     thoughtStorageBlocked = true;
     showThoughtError(thoughtLoadError, "Не удалось загрузить мысли: сохранённые данные повреждены или хранилище недоступно. Добавление заблокировано, чтобы не потерять сохранения. После восстановления данных или доступа перезагрузите страницу.");
   }
+}
+
+function undatedThoughts(items) {
+  return items.filter((thought) => !thoughtPlacements.some((placement) => placement.thoughtId === thought.id));
+}
+
+function loadThoughtPlacements() {
+  try {
+    placementStorageSnapshot = localStorage.getItem(placementStorageKey);
+    const items = placementStorageSnapshot === null ? [] : JSON.parse(placementStorageSnapshot);
+    const ids = new Set();
+    if (!Array.isArray(items) || !items.every((item) => {
+      if (!item || typeof item.id !== "string" || !item.id.trim() || ids.has(item.id)
+        || typeof item.thoughtId !== "string" || !item.thoughtId.trim()
+        || !isCalendarDate(item.date) || typeof item.title !== "string" || !item.title.trim()
+        || !thoughtColours.includes(item.colour) || item.type !== toEventColour(item.colour)
+        || typeof item.description !== "string") return false;
+      ids.add(item.id);
+      return true;
+    })) throw new Error("Invalid thought placements");
+    thoughtPlacements = items;
+    for (const placement of thoughtPlacements) attachThoughtPlacement(placement);
+  } catch {
+    placementStorageBlocked = true;
+    showThoughtError(thoughtOrderError, "Не удалось загрузить размещения мыслей. Данные не изменены; перенос и изменение мыслей заблокированы до восстановления данных и перезагрузки страницы.");
+  }
+}
+
+function attachThoughtPlacement(placement) {
+  const event = { title: placement.title, colour: placement.type, description: placement.description };
+  placedEvents.set(event, placement.id);
+  (events[placement.date] ||= []).push(event);
+}
+
+function checkThoughtStorage() {
+  if (thoughtStorageBlocked || placementStorageBlocked) throw new Error("Storage unavailable");
+  if (localStorage.getItem(thoughtStorageKey) !== thoughtStorageSnapshot
+    || localStorage.getItem(placementStorageKey) !== placementStorageSnapshot) {
+    throw new Error("Thoughts changed in another tab");
+  }
+}
+
+function saveThoughtPlacements(nextPlacements, errorElement) {
+  try {
+    checkThoughtStorage();
+    const serialized = JSON.stringify(nextPlacements);
+    localStorage.setItem(placementStorageKey, serialized);
+    placementStorageSnapshot = serialized;
+    thoughtPlacements = nextPlacements;
+    showThoughtError(errorElement, "");
+    return true;
+  } catch {
+    showThoughtError(errorElement, "Не удалось сохранить размещение мысли. Хранилище недоступно, повреждено или изменилось в другой вкладке. Исходные записи и ввод сохранены. При конфликте перезагрузите страницу; иначе повторите попытку.");
+    return false;
+  }
+}
+
+function savePlacedEvent(event, changes, errorElement) {
+  const id = placedEvents.get(event);
+  if (thoughtStorageBlocked || placementStorageBlocked) {
+    showThoughtError(errorElement, "Изменение размещения заблокировано: сначала восстановите данные мыслей и перезагрузите страницу.");
+    return false;
+  }
+  // Finish an interrupted inbox cleanup before editing or deleting its placement.
+  // Otherwise deleting the placement could make the old inbox copy reappear.
+  if (parseThoughts(thoughtStorageSnapshot).some((thought) =>
+    thoughtPlacements.some((placement) => placement.thoughtId === thought.id))) {
+    if (!saveThoughts(thoughts, errorElement)) return false;
+  }
+  const next = changes
+    ? thoughtPlacements.map((item) => item.id === id
+      ? { ...item, title: changes.title, colour: changes.colour.slice("thought-".length), type: changes.colour, description: changes.description }
+      : item)
+    : thoughtPlacements.filter((item) => item.id !== id);
+  return saveThoughtPlacements(next, errorElement);
+}
+
+function clearCalendarDropTarget() {
+  calendar.querySelectorAll(".thought-drop-target").forEach((cell) => cell.classList.remove("thought-drop-target"));
+}
+
+function previewCalendarDrop(event) {
+  if (draggedThoughtId === null) return;
+  clearCalendarDropTarget();
+  const cell = event.target.closest(".calendar-cell[data-date]");
+  if (!cell || !calendar.contains(cell) || !isCalendarDate(cell.dataset.date)) return;
+  event.preventDefault();
+  event.dataTransfer.dropEffect = "move";
+  cell.classList.add("thought-drop-target");
+}
+
+function dropThoughtOnDate(event) {
+  const cell = event.target.closest(".calendar-cell[data-date]");
+  const index = thoughts.findIndex((thought) => thought.id === draggedThoughtId);
+  if (!cell || !calendar.contains(cell) || index < 0 || !isCalendarDate(cell.dataset.date)) return;
+  event.preventDefault();
+  const thought = thoughts[index];
+  const focusId = thoughts[index + 1]?.id || thoughts[index - 1]?.id;
+  endThoughtDrag();
+  if (thoughtPlacements.some((item) => item.thoughtId === thought.id)) return;
+  const placement = {
+    id: `placed-thought-${crypto.randomUUID()}`, thoughtId: thought.id,
+    date: cell.dataset.date, title: thought.text, colour: thought.colour,
+    type: toEventColour(thought.colour), description: "Мысль добавлена из верхней ленты",
+    sourceThought: { ...thought },
+  };
+  // The placement write is the commit point. Inbox removal is recoverable cleanup:
+  // on reload, an existing placement always takes precedence over an inbox copy.
+  if (!saveThoughtPlacements([...thoughtPlacements, placement], thoughtOrderError)) return;
+  const nextThoughts = undatedThoughts(thoughts);
+  if (!saveThoughts(nextThoughts, thoughtOrderError)) {
+    thoughts = nextThoughts;
+    showThoughtError(thoughtOrderError, "Мысль сохранена на дате, но резервную запись в хранилище ленты удалить не удалось. После перезагрузки она останется только на дате. Очистка повторится при следующем сохранении мыслей.");
+  }
+  attachThoughtPlacement(placement);
+  renderThoughts();
+  refreshDate(placement.date);
+  (getThoughtCard(focusId) || thoughtAddButton).focus({ preventScroll: true });
 }
 
 function renderThoughts() {
@@ -435,7 +560,7 @@ function renderThoughts() {
     card.className = `thought ${thought.colour}`.trim();
     card.dataset.thoughtId = thought.id;
     card.draggable = true;
-    card.title = "Нажмите, чтобы отредактировать. Перетащите, чтобы изменить порядок.";
+    card.title = "Нажмите, чтобы отредактировать. Перетащите внутри ленты или на дату календаря.";
     card.tabIndex = 0;
     card.setAttribute("role", "button");
     card.setAttribute("aria-label", `Редактировать мысль: ${thought.text}`);
@@ -459,6 +584,7 @@ function endThoughtDrag() {
   draggedThoughtId = null;
   thoughtTrack.querySelector(".dragging")?.classList.remove("dragging");
   clearThoughtDropTarget();
+  clearCalendarDropTarget();
 }
 
 function getThoughtDropTarget(clientX) {
@@ -538,16 +664,13 @@ function saveThoughts(nextThoughts, errorElement) {
     return false;
   }
   try {
-    if (localStorage.getItem(thoughtStorageKey) !== thoughtStorageSnapshot) {
-      showThoughtError(errorElement, "Сохранённые мысли изменились после загрузки страницы. Скопируйте введённый текст и перезагрузите страницу, чтобы не затереть изменения.");
-      return false;
-    }
+    checkThoughtStorage();
     const serialized = JSON.stringify(nextThoughts);
     localStorage.setItem(thoughtStorageKey, serialized);
     thoughts = nextThoughts;
     thoughtStorageSnapshot = serialized;
   } catch {
-    showThoughtError(errorElement, "Не удалось сохранить изменения мыслей. Исходные записи не изменены. Проверьте доступ к хранилищу и свободное место, затем повторите попытку.");
+    showThoughtError(errorElement, "Не удалось сохранить изменения мыслей. Исходные записи не изменены. Проверьте доступ к хранилищу и свободное место. Если данные изменены в другой вкладке, скопируйте ввод и перезагрузите страницу.");
     return false;
   }
   return true;
@@ -687,9 +810,11 @@ function applyEventTemplate() {
   const template = savedTemplates.find((item) => item.id === templateSelect.value);
   if (!template) return;
   nameInput.value = template.title;
+  nameInput.maxLength = Math.max(60, template.title.length);
   nameInput.setCustomValidity("");
   setEventColour(template.type);
   eventForm.elements.description.value = template.description;
+  eventForm.elements.description.maxLength = Math.max(240, template.description.length);
   nameInput.focus({ preventScroll: true });
 }
 
@@ -852,6 +977,7 @@ function applyDayState(row, date) {
 function createDayRow(year, monthIndex, day) {
   const row = document.createElement("div");
   row.className = "calendar-cell";
+  row.dataset.date = getDateKey(year, monthIndex, day);
   applyDayState(row, createLocalDate(year, monthIndex, day));
 
   const line = document.createElement("div");
@@ -986,21 +1112,32 @@ function closeDialog() {
   pendingThought = null;
 }
 
+function getEventTitleInput() {
+  return placedEvents.has(editingEvent) ? placedThoughtText : nameInput;
+}
+
 function prepareEventForm(key, event = null) {
   creationDate = key;
   editingEvent = event;
   eventForm.reset();
+  const isPlacedThought = placedEvents.has(event);
+  nameInput.closest("label").hidden = isPlacedThought;
+  nameInput.disabled = isPlacedThought;
+  placedThoughtText.closest("label").hidden = !isPlacedThought;
+  placedThoughtText.disabled = !isPlacedThought;
   showEventStorageError(eventSaveError, eventStorageBlocked ? eventLoadError.textContent : "");
   nameInput.maxLength = Math.max(60, event?.title.length || 0);
+  placedThoughtText.maxLength = Math.max(240, event?.title.length || 0);
   eventForm.elements.description.maxLength = Math.max(240, event?.description.length || 0);
   templateField.hidden = Boolean(event);
   if (!event) renderTemplateOptions();
   setEventColour(event ? event.colour : toEventColour("yellow"));
   nameInput.setCustomValidity("");
+  placedThoughtText.setCustomValidity("");
   document.querySelector("#yearly-event-title").textContent = event ? "Редактировать событие" : "Новое событие";
   eventForm.querySelector("[type=submit]").textContent = event ? "Сохранить изменения" : "Создать событие";
   if (event) {
-    nameInput.value = event.title;
+    getEventTitleInput().value = event.title;
     eventForm.elements.description.value = event.description;
   }
   document.querySelector("#yearly-event-date").textContent = `Дата: ${formatDate(creationDate)}`;
@@ -1030,7 +1167,7 @@ function openEventEditor() {
   if (!selectedEvent) return;
   prepareEventForm(selectedEvent.key, selectedEvent.event);
   creationDialog.querySelector("[data-back-to-list]").hidden = true;
-  openDialog(creationDialog, null, nameInput);
+  openDialog(creationDialog, null, getEventTitleInput());
 }
 
 function cancelEditing() {
@@ -1077,7 +1214,9 @@ function confirmDeletion() {
   const remaining = events[key].filter((_, position) => position !== index);
   const nextEvents = { ...events, [key]: remaining };
   if (!remaining.length) delete nextEvents[key];
-  if (!saveYearEvents(nextEvents, eventDeleteError)) return;
+  if (placedEvents.has(event)) {
+    if (!savePlacedEvent(event, null, eventDeleteError)) return;
+  } else if (!saveYearEvents(nextEvents, eventDeleteError)) return;
   setDeleteConfirmation(false);
   events[key].splice(index, 1);
   if (events[key].length === 0) delete events[key];
@@ -1128,8 +1267,9 @@ function openDayEvents(key, opener = null) {
 
 function submitEvent(event) {
   event.preventDefault();
-  const title = nameInput.value.trim();
-  nameInput.setCustomValidity(title ? "" : "Введите название события.");
+  const titleInput = getEventTitleInput();
+  const title = titleInput.value.trim();
+  titleInput.setCustomValidity(title ? "" : (placedEvents.has(editingEvent) ? "Введите текст мысли." : "Введите название события."));
   if (!eventForm.reportValidity()) return;
   if (!creationDate) return;
 
@@ -1145,7 +1285,9 @@ function submitEvent(event) {
   const nextDay = editingEvent
     ? dayEvents.map((item, position) => position === index ? changes : item)
     : [...dayEvents, changes];
-  if (!saveYearEvents({ ...events, [creationDate]: nextDay }, eventSaveError)) return;
+  if (placedEvents.has(editingEvent)) {
+    if (!savePlacedEvent(editingEvent, changes, eventSaveError)) return;
+  } else if (!saveYearEvents({ ...events, [creationDate]: nextDay }, eventSaveError)) return;
   if (editingEvent) {
     Object.assign(editingEvent, changes);
   } else {
@@ -1177,6 +1319,7 @@ function handleDialogKeydown(event) {
 }
 
 calendar.addEventListener("click", (event) => {
+  if (suppressThoughtClick && event.detail !== 0) return;
   const button = event.target.closest("button[data-date]");
   if (!button || !calendar.contains(button)) return;
   const key = button.dataset.date;
@@ -1184,6 +1327,13 @@ calendar.addEventListener("click", (event) => {
   if (button.dataset.action === "create-event" || count === 0) openCreationForm(key, button);
   else if (count === 1) openEventCard(key, 0, button);
   else openDayEvents(key, button);
+});
+
+calendar.addEventListener("pointerdown", () => { suppressThoughtClick = false; });
+calendar.addEventListener("dragover", previewCalendarDrop);
+calendar.addEventListener("drop", dropThoughtOnDate);
+calendar.addEventListener("dragleave", (event) => {
+  if (!event.target.closest(".calendar-cell[data-date]")?.contains(event.relatedTarget)) clearCalendarDropTarget();
 });
 
 dayEventList.addEventListener("click", (event) => {
@@ -1282,12 +1432,14 @@ for (const dialog of [creationDialog, cardDialog, listDialog, filtersDialog, tho
 }
 document.addEventListener("keydown", handleDialogKeydown);
 nameInput.addEventListener("input", () => nameInput.setCustomValidity(""));
+placedThoughtText.addEventListener("input", () => placedThoughtText.setCustomValidity(""));
 eventForm.addEventListener("submit", submitEvent);
 
 createColourPalette(thoughtColourPalette, (colour) => colour, setThoughtColour);
 createColourPalette(eventColourPalette, toEventColour, setEventColour);
 loadYearScale();
 loadYearEvents();
+loadThoughtPlacements();
 showCalendarYear(currentYear);
 loadHistory();
 loadThoughts();

@@ -14,6 +14,7 @@ The project is a working yearly prototype in active development. The application
 - Filters by event title that highlight matches and dim other events while keeping every date in the grid.
 - Create undated thoughts in a horizontal card strip above the calendar, edit their text and colour, and delete them with confirmation.
 - Reorder thoughts by dragging cards within the strip; the order is retained after a successful save.
+- Drag a thought onto a calendar date to schedule it alongside existing events. Its full text, colour, and source identity are retained after reloading; it leaves the undated strip. Scheduled thoughts can be viewed, edited, deleted with confirmation, saved as templates, or added to history. Returning them to the strip is not implemented yet.
 - A shared 16-colour palette for creating thoughts and for creating and editing events.
 - Save an event's title, colour, and description as an independent template. Apply a template when creating an event, keep the selected date, and adjust the fields before creation.
 - Manually add independent event snapshots to a chronological history strip. Editing or deleting the original event does not change its snapshots. Deleting a snapshot requires confirmation.
@@ -26,6 +27,7 @@ The project is a working yearly prototype in active development. The application
 | Events | localStorage | Retained between reloads after a successful save |
 | History snapshots | localStorage | Retained between reloads after a successful save |
 | Thoughts | localStorage | Retained between reloads |
+| Scheduled thoughts | localStorage | Retained between reloads after a successful save |
 | Event templates | localStorage | Retained between reloads |
 | Yearly scale setting | localStorage | Retained between reloads |
 | Filter selection | In memory | Reset |
