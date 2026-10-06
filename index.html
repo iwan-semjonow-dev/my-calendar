@@ -117,6 +117,10 @@
           </div>
         </section>
       </main>
+      <div class="thought-undo-toast" id="thought-undo-toast" role="status" hidden>
+        <span id="thought-undo-message"></span>
+        <button type="button" id="undo-thought-placement">Отменить</button>
+      </div>
     </div>
     <div class="day-backdrop settings-backdrop" id="year-settings" role="dialog" aria-modal="true" aria-labelledby="year-settings-title" hidden>
       <section class="day-dialog settings-dialog">
@@ -295,9 +299,11 @@
           <button class="event-card-action" type="button" id="edit-event">Редактировать</button>
           <button class="event-card-action" type="button" id="save-event-template">Сохранить как шаблон</button>
           <button class="event-card-action" type="button" id="add-event-history">Добавить в историю</button>
+          <button class="event-card-action" type="button" id="return-thought" hidden>Вернуть в мысли</button>
           <button class="event-card-action danger" type="button" id="delete-event">Удалить</button>
         </div>
         <p class="event-card-notice" id="event-template-notice" role="status" hidden></p>
+        <p class="settings-error" id="event-return-error" role="alert" hidden></p>
         <p class="event-card-notice" id="event-delete-notice" role="status" hidden></p>
         <p class="settings-error" id="event-delete-error" role="alert" hidden></p>
         <div class="event-card-confirm" id="event-delete-confirm" hidden>

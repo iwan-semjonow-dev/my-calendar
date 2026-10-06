@@ -88,6 +88,12 @@ const thoughtTrack = document.querySelector("#thought-track");
 const thoughtLoadError = document.querySelector("#thought-load-error");
 const thoughtSaveError = document.querySelector("#thought-save-error");
 const thoughtOrderError = document.querySelector("#thought-order-error");
+const thoughtUndoToast = document.querySelector("#thought-undo-toast");
+const thoughtUndoMessage = document.querySelector("#thought-undo-message");
+const returnThoughtButton = document.querySelector("#return-thought");
+const thoughtReturnError = document.querySelector("#event-return-error");
+let undoThoughtPlacementId = null;
+let undoThoughtTimer = null;
 let draggedThoughtId = null;
 let suppressThoughtClick = false;
 const thoughtDeleteButton = document.querySelector("#delete-thought");
@@ -514,6 +520,79 @@ function clearCalendarDropTarget() {
   calendar.querySelectorAll(".thought-drop-target").forEach((cell) => cell.classList.remove("thought-drop-target"));
 }
 
+function hideThoughtUndo() {
+  window.clearTimeout(undoThoughtTimer);
+  undoThoughtTimer = null;
+  if (thoughtUndoToast.contains(document.activeElement)) {
+    const placement = thoughtPlacements.find((item) => item.id === undoThoughtPlacementId);
+    const target = placement && calendar.querySelector(`[data-action="open-day"][data-date="${placement.date}"]`);
+    (target || thoughtAddButton).focus({ preventScroll: true });
+  }
+  undoThoughtPlacementId = null;
+  thoughtUndoToast.hidden = true;
+}
+
+function showThoughtUndo(placement) {
+  window.clearTimeout(undoThoughtTimer);
+  undoThoughtPlacementId = placement.id;
+  thoughtUndoMessage.textContent = `Мысль перенесена на ${formatDate(placement.date)}.`;
+  thoughtUndoToast.hidden = false;
+  undoThoughtTimer = window.setTimeout(() => {
+    if (undoThoughtPlacementId === placement.id) hideThoughtUndo();
+  }, 9000);
+}
+
+function returnPlacedThought(id, errorElement) {
+  const placement = thoughtPlacements.find((item) => item.id === id);
+  if (!placement) return false;
+  let nextThoughts;
+  try {
+    checkThoughtStorage();
+    if (thoughtPlacements.some((item) => item.id !== id && item.thoughtId === placement.thoughtId)) {
+      showThoughtError(errorElement, "У этой мысли несколько размещений. Возврат остановлен, чтобы не создать копию в ленте одновременно с другим размещением.");
+      return false;
+    }
+    const source = placement.sourceThought || parseThoughts(thoughtStorageSnapshot).find((item) => item.id === placement.thoughtId) || {};
+    const { id: placementId, thoughtId, date, title, colour, type, description, sourceThought, ...extra } = placement;
+    const returned = {
+      ...source, id: thoughtId, text: title, colour,
+      scheduledDescription: description,
+      placementMetadata: { ...source.placementMetadata, ...extra },
+    };
+    nextThoughts = [returned, ...thoughts.filter((item) => item.id !== thoughtId)];
+  } catch {
+    showThoughtError(errorElement, "Не удалось вернуть мысль: хранилище недоступно, повреждено или изменилось в другой вкладке. Данные не изменены. При конфликте перезагрузите страницу, иначе повторите попытку.");
+    return false;
+  }
+  // Prepare the inbox copy first. While the placement exists, load/saveThoughts
+  // keep this copy out of the visible inbox, including after an interrupted return.
+  if (!saveThoughts(nextThoughts, errorElement)) return false;
+  if (!saveThoughtPlacements(thoughtPlacements.filter((item) => item.id !== id), errorElement)) {
+    showThoughtError(errorElement, "Возврат не завершён: копия мысли сохранена, но удалить размещение не удалось. Мысль остаётся на дате, в том числе после перезагрузки. Повторите возврат; при конфликте сначала перезагрузите страницу.");
+    return false;
+  }
+  thoughts = nextThoughts;
+  const remaining = (events[placement.date] || []).filter((event) => placedEvents.get(event) !== id);
+  if (remaining.length) events[placement.date] = remaining;
+  else delete events[placement.date];
+  renderThoughts();
+  const button = calendar.querySelector(`[data-action="open-day"][data-date="${placement.date}"]`);
+  if (button) updateEventButton(button, placement.date);
+  syncYearFilters();
+  showThoughtError(thoughtOrderError, "");
+  if (undoThoughtPlacementId === id) hideThoughtUndo();
+  if (activeDialog === cardDialog) {
+    if (remaining.length) openDayEvents(placement.date);
+    else {
+      dialogOpener = getThoughtCard(placement.thoughtId) || thoughtAddButton;
+      closeDialog();
+    }
+  } else {
+    (getThoughtCard(placement.thoughtId) || thoughtAddButton).focus({ preventScroll: true });
+  }
+  return true;
+}
+
 function previewCalendarDrop(event) {
   if (draggedThoughtId === null) return;
   clearCalendarDropTarget();
@@ -534,9 +613,10 @@ function dropThoughtOnDate(event) {
   endThoughtDrag();
   if (thoughtPlacements.some((item) => item.thoughtId === thought.id)) return;
   const placement = {
+    ...thought.placementMetadata,
     id: `placed-thought-${crypto.randomUUID()}`, thoughtId: thought.id,
     date: cell.dataset.date, title: thought.text, colour: thought.colour,
-    type: toEventColour(thought.colour), description: "Мысль добавлена из верхней ленты",
+    type: toEventColour(thought.colour), description: typeof thought.scheduledDescription === "string" ? thought.scheduledDescription : "Мысль добавлена из верхней ленты",
     sourceThought: { ...thought },
   };
   // The placement write is the commit point. Inbox removal is recoverable cleanup:
@@ -551,6 +631,7 @@ function dropThoughtOnDate(event) {
   renderThoughts();
   refreshDate(placement.date);
   (getThoughtCard(focusId) || thoughtAddButton).focus({ preventScroll: true });
+  showThoughtUndo(placement);
 }
 
 function renderThoughts() {
@@ -667,7 +748,7 @@ function saveThoughts(nextThoughts, errorElement) {
     checkThoughtStorage();
     const serialized = JSON.stringify(nextThoughts);
     localStorage.setItem(thoughtStorageKey, serialized);
-    thoughts = nextThoughts;
+    thoughts = undatedThoughts(nextThoughts);
     thoughtStorageSnapshot = serialized;
   } catch {
     showThoughtError(errorElement, "Не удалось сохранить изменения мыслей. Исходные записи не изменены. Проверьте доступ к хранилищу и свободное место. Если данные изменены в другой вкладке, скопируйте ввод и перезагрузите страницу.");
@@ -1153,6 +1234,8 @@ function openEventCard(key, index, opener = null, fromList = false) {
   pendingHistoryRecord = null;
   const event = events[key][index];
   selectedEvent = { key, event, fromList };
+  returnThoughtButton.hidden = !placedEvents.has(event);
+  showThoughtError(thoughtReturnError, "");
   templateNotice.hidden = true;
   setDeleteConfirmation(false);
   cardDialog.querySelector("[data-back-to-list]").hidden = !fromList;
@@ -1190,6 +1273,7 @@ function setDeleteConfirmation(visible) {
 function requestDeletion() {
   if (!selectedEvent) return;
   templateNotice.hidden = true;
+  showThoughtError(thoughtReturnError, "");
   deleteNotice.textContent = `Удалить событие «${selectedEvent.event.title}»?`;
   setDeleteConfirmation(true);
   cancelDeleteButton.focus({ preventScroll: true });
@@ -1217,6 +1301,7 @@ function confirmDeletion() {
   if (placedEvents.has(event)) {
     if (!savePlacedEvent(event, null, eventDeleteError)) return;
   } else if (!saveYearEvents(nextEvents, eventDeleteError)) return;
+  if (undoThoughtPlacementId === placedEvents.get(event)) hideThoughtUndo();
   setDeleteConfirmation(false);
   events[key].splice(index, 1);
   if (events[key].length === 0) delete events[key];
@@ -1342,6 +1427,13 @@ dayEventList.addEventListener("click", (event) => {
 });
 createFromList.addEventListener("click", () => openCreationForm(listDate, null, true));
 editButton.addEventListener("click", openEventEditor);
+returnThoughtButton.addEventListener("click", () => {
+  if (activeDialog !== cardDialog || pendingDeletion || !selectedEvent) return;
+  returnPlacedThought(placedEvents.get(selectedEvent.event), thoughtReturnError);
+});
+document.querySelector("#undo-thought-placement").addEventListener("click", () => {
+  if (!activeDialog && undoThoughtPlacementId !== null) returnPlacedThought(undoThoughtPlacementId, thoughtOrderError);
+});
 document.querySelector("#save-event-template").addEventListener("click", saveEventTemplate);
 document.querySelector("#add-event-history").addEventListener("click", addEventHistory);
 historyTimeline.addEventListener("click", (event) => {

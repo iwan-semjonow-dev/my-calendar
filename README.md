@@ -14,7 +14,8 @@ The project is a working yearly prototype in active development. The application
 - Filters by event title that highlight matches and dim other events while keeping every date in the grid.
 - Create undated thoughts in a horizontal card strip above the calendar, edit their text and colour, and delete them with confirmation.
 - Reorder thoughts by dragging cards within the strip; the order is retained after a successful save.
-- Drag a thought onto a calendar date to schedule it alongside existing events. Its full text, colour, and source identity are retained after reloading; it leaves the undated strip. Scheduled thoughts can be viewed, edited, deleted with confirmation, saved as templates, or added to history. Returning them to the strip is not implemented yet.
+- Drag a thought onto a calendar date to schedule it alongside existing events. Its full text, colour, and source identity are retained after reloading; it leaves the undated strip. Scheduled thoughts can be viewed, edited, deleted with confirmation, saved as templates, or added to history.
+- Undo the latest thought placement within nine seconds, or return it through its event card later. The thought returns to the start of the strip with its current text and colour; its description is retained for scheduling it again.
 - A shared 16-colour palette for creating thoughts and for creating and editing events.
 - Save an event's title, colour, and description as an independent template. Apply a template when creating an event, keep the selected date, and adjust the fields before creation.
 - Manually add independent event snapshots to a chronological history strip. Editing or deleting the original event does not change its snapshots. Deleting a snapshot requires confirmation.
