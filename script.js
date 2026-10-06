@@ -37,6 +37,32 @@ const monthNamesGenitive = [
 ];
 const calendar = document.querySelector(".year-columns");
 const calendarScroll = document.querySelector(".calendar-scroll");
+const dayMarkStorageKey = "my-calendar-year-day-marks-v2";
+const dayMarkError = document.querySelector("#day-mark-error");
+const dayMarkPalette = document.querySelector("#day-mark-palette");
+const calendarToolButtons = [...document.querySelectorAll("[data-calendar-tool]")];
+let dayMarks = {};
+let dayMarkStorageSnapshot = null;
+let dayMarkStorageBlocked = false;
+let activeCalendarTool = null;
+let activeCalendarToolColour = "yellow";
+let ringLayoutFrame = null;
+const dayMarkColours = {
+  yellow: { fill: "#ffe39a", ring: "#bd8400" }, amber: { fill: "#ffd08a", ring: "#be7100" },
+  peach: { fill: "#ffd5bb", ring: "#bb6841" }, coral: { fill: "#ffb9a8", ring: "#c85239" },
+  pink: { fill: "#ffcac9", ring: "#c54f63" }, rose: { fill: "#f5c6d4", ring: "#aa526d" },
+  violet: { fill: "#e3d2fa", ring: "#7653bd" }, indigo: { fill: "#c9cdf9", ring: "#4e59ba" },
+  blue: { fill: "#cfe0fb", ring: "#3f73bc" }, sky: { fill: "#c9e7f7", ring: "#4286a8" },
+  mint: { fill: "#c8f0ee", ring: "#328e88" }, teal: { fill: "#bfe8df", ring: "#218276" },
+  green: { fill: "#cdf0ad", ring: "#5b9432" }, lime: { fill: "#d9ed9a", ring: "#799923" },
+  sand: { fill: "#eadcbf", ring: "#9b7651" }, slate: { fill: "#d9dfe7", ring: "#667386" },
+};
+const ringShapes = [
+  { x: -8, y: -7, main: "M7 11 C15 1 37 1 45 12 C50 22 40 38 28 42 C14 45 2 35 3 22 C2 18 4 13 7 11 Z", echo: "M11 10 C20 5 35 5 42 12 C44 14 45 17 46 20" },
+  { x: -7, y: -6, main: "M6 12 C13 2 36 1 44 10 C49 19 42 36 29 41 C16 45 3 37 3 24 C2 19 3 15 6 12 Z", echo: "M9 11 C18 6 34 5 41 11 C44 14 46 17 46 21" },
+  { x: -9, y: -7, main: "M8 10 C19 2 39 3 46 13 C49 24 39 39 25 42 C12 43 2 33 4 20 C3 16 5 12 8 10 Z", echo: "M12 10 C22 6 37 6 43 13 C45 16 46 19 46 22" },
+  { x: -7, y: -6, main: "M5 13 C13 3 35 1 44 11 C48 22 40 37 27 41 C13 44 3 35 3 23 C2 19 3 16 5 13 Z", echo: "M10 12 C18 7 34 6 41 12 C44 15 45 18 46 21" },
+];
 const yearNavigationButtons = [...document.querySelectorAll("[data-year-nav]")];
 const todayButton = document.querySelector("[data-go-today]");
 let todayFocusTimer = null;
@@ -141,6 +167,97 @@ const eventDeleteError = document.querySelector("#event-delete-error");
 let eventStorageSnapshot = null;
 let eventStorageBlocked = false;
 
+function loadDayMarks() {
+  try {
+    dayMarkStorageSnapshot = localStorage.getItem(dayMarkStorageKey);
+    const stored = dayMarkStorageSnapshot === null ? {} : JSON.parse(dayMarkStorageSnapshot);
+    if (!stored || typeof stored !== "object" || Array.isArray(stored)
+      || !Object.entries(stored).every(([date, mark]) => isCalendarDate(date)
+        && mark && typeof mark === "object" && !Array.isArray(mark)
+        && ["fill", "ring"].every((part) => !Object.hasOwn(mark, part) || mark[part] === ""
+          || calendarPalette.some(({ value }) => value === mark[part])))) throw new Error("Invalid day marks");
+    dayMarks = stored;
+  } catch {
+    dayMarkStorageBlocked = true;
+    showEventStorageError(dayMarkError, "Не удалось загрузить отметки дней: данные повреждены или хранилище недоступно. Запись отметок заблокирована, исходные данные не изменены. После восстановления перезагрузите страницу.");
+  }
+}
+
+function setCalendarTool(tool) {
+  activeCalendarTool = activeCalendarTool === tool ? null : tool;
+  calendarToolButtons.forEach((button) => button.setAttribute("aria-pressed", String(button.dataset.calendarTool === activeCalendarTool)));
+  calendar.classList.toggle("day-tool-active", Boolean(activeCalendarTool));
+}
+
+function setCalendarToolColour(colour) {
+  activeCalendarToolColour = colour;
+  updateColourPalette(dayMarkPalette, colour);
+}
+
+function applyDayMark(cell) {
+  const mark = dayMarks[cell.dataset.date] || {};
+  cell.classList.toggle("day-has-fill", Boolean(mark.fill));
+  cell.classList.toggle("day-has-ring", Boolean(mark.ring));
+  cell.style.setProperty("--day-fill-colour", mark.fill ? dayMarkColours[mark.fill].fill : "");
+}
+
+function saveDayMark(cell) {
+  if (dayMarkStorageBlocked) return;
+  const date = cell.dataset.date;
+  if (!isCalendarDate(date) || Number(date.slice(0, 4)) !== displayedYear) return;
+  try {
+    if (localStorage.getItem(dayMarkStorageKey) !== dayMarkStorageSnapshot) {
+      showEventStorageError(dayMarkError, "Отметки изменились в другой вкладке. Запись остановлена: перезагрузите страницу, чтобы не затереть изменения.");
+      return;
+    }
+    if (dayMarks[date]?.[activeCalendarTool] === activeCalendarToolColour) return;
+    const next = { ...dayMarks, [date]: { ...dayMarks[date], [activeCalendarTool]: activeCalendarToolColour } };
+    const serialized = JSON.stringify(next);
+    localStorage.setItem(dayMarkStorageKey, serialized);
+    dayMarkStorageSnapshot = serialized;
+    dayMarks = next;
+  } catch {
+    showEventStorageError(dayMarkError, "Не удалось сохранить отметку дня. Отметки не изменены. Проверьте доступ к хранилищу и повторите попытку.");
+    return;
+  }
+  showEventStorageError(dayMarkError);
+  applyDayMark(cell);
+  scheduleDayRings();
+}
+
+function scheduleDayRings() {
+  window.cancelAnimationFrame(ringLayoutFrame);
+  ringLayoutFrame = window.requestAnimationFrame(renderDayRings);
+}
+
+function renderDayRings() {
+  ringLayoutFrame = null;
+  calendar.querySelector(".day-ring-layer")?.remove();
+  const layer = document.createElement("div");
+  layer.className = "day-ring-layer";
+  layer.setAttribute("aria-hidden", "true");
+  calendar.append(layer);
+  const origin = layer.getBoundingClientRect();
+  for (const cell of calendar.querySelectorAll(".day-has-ring[data-date]")) {
+    const shape = ringShapes[Number(cell.dataset.date.slice(-2)) % ringShapes.length];
+    const rect = cell.getBoundingClientRect();
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.classList.add("day-ring");
+    svg.dataset.date = cell.dataset.date;
+    svg.setAttribute("viewBox", "0 0 50 44");
+    svg.style.left = `${rect.left - origin.left + shape.x}px`;
+    svg.style.top = `${rect.top - origin.top + shape.y}px`;
+    svg.style.setProperty("--day-ring-colour", dayMarkColours[dayMarks[cell.dataset.date].ring].ring);
+    for (const part of ["main", "echo"]) {
+      const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      path.classList.add(`${part}-stroke`);
+      path.setAttribute("d", shape[part]);
+      svg.append(path);
+    }
+    layer.append(svg);
+  }
+}
+
 function showEventStorageError(element, message = "") {
   element.textContent = message;
   element.hidden = !message;
@@ -237,6 +354,7 @@ function applyYearScale(scale) {
   scaleButtons.forEach((button) => {
     button.setAttribute("aria-pressed", String(button.dataset.yearScale === scale));
   });
+  scheduleDayRings();
 }
 
 function loadYearScale() {
@@ -1060,6 +1178,7 @@ function createDayRow(year, monthIndex, day) {
   row.className = "calendar-cell";
   row.dataset.date = getDateKey(year, monthIndex, day);
   applyDayState(row, createLocalDate(year, monthIndex, day));
+  applyDayMark(row);
 
   const line = document.createElement("div");
   line.className = "day-line";
@@ -1111,6 +1230,7 @@ function renderCalendar(year) {
   document.querySelectorAll(".month-column").forEach((column, monthIndex) => {
     renderMonth(column, year, monthIndex);
   });
+  scheduleDayRings();
 }
 
 function showCalendarYear(year) {
@@ -1405,6 +1525,11 @@ function handleDialogKeydown(event) {
 
 calendar.addEventListener("click", (event) => {
   if (suppressThoughtClick && event.detail !== 0) return;
+  const cell = event.target.closest(".calendar-cell[data-date]");
+  if (activeCalendarTool && cell) {
+    saveDayMark(cell);
+    return;
+  }
   const button = event.target.closest("button[data-date]");
   if (!button || !calendar.contains(button)) return;
   const key = button.dataset.date;
@@ -1415,6 +1540,15 @@ calendar.addEventListener("click", (event) => {
 });
 
 calendar.addEventListener("pointerdown", () => { suppressThoughtClick = false; });
+calendarToolButtons.forEach((button) => button.addEventListener("click", () => setCalendarTool(button.dataset.calendarTool)));
+document.querySelector(".calendar-panel").addEventListener("click", (event) => {
+  if (activeCalendarTool && !event.target.closest(".calendar-cell[data-date], [data-calendar-tool], #day-mark-palette button, [data-go-today]")) setCalendarTool(null);
+});
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && !activeDialog) setCalendarTool(null);
+});
+new ResizeObserver(scheduleDayRings).observe(calendar);
+window.addEventListener("resize", scheduleDayRings);
 calendar.addEventListener("dragover", previewCalendarDrop);
 calendar.addEventListener("drop", dropThoughtOnDate);
 calendar.addEventListener("dragleave", (event) => {
@@ -1529,6 +1663,9 @@ eventForm.addEventListener("submit", submitEvent);
 
 createColourPalette(thoughtColourPalette, (colour) => colour, setThoughtColour);
 createColourPalette(eventColourPalette, toEventColour, setEventColour);
+createColourPalette(dayMarkPalette, (colour) => colour, setCalendarToolColour);
+setCalendarToolColour(activeCalendarToolColour);
+loadDayMarks();
 loadYearScale();
 loadYearEvents();
 loadThoughtPlacements();

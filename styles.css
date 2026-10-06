@@ -84,12 +84,36 @@ h1 {
 .calendar-scroll {
   width: 100%;
   overflow-x: auto;
+  padding: 0 8px 12px;
 }
 
 .calendar-controls { display: flex; min-height: 64px; align-items: center; justify-content: center; flex-wrap: wrap; gap: 9px; padding: 8px 20px; }
 .calendar-controls .nav-button { min-height: 32px; }
 
+.calendar-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 9px; }
+.calendar-tool-buttons { display: flex; align-items: center; gap: 5px; padding-right: 9px; border-right: 1px solid #e3e7ed; }
+.calendar-tool-button { display: grid; width: 32px; height: 32px; place-items: center; padding: 0; color: #4c596b; border: 1px solid #dce2ea; border-radius: 8px; background: #fff; font-weight: 600; cursor: pointer; }
+.calendar-tool-button svg { width: 17px; height: 17px; }
+.calendar-tool-button:hover { border-color: #aebfe9; background: #f6f8fd; }
+.calendar-tool-button[aria-pressed="true"] { color: #244ebc; border-color: #89a4e8; background: #eef3ff; box-shadow: inset 0 0 0 1px #89a4e8; }
+.calendar-tool-colour-palette { display: grid; grid-template-columns: repeat(8, 18px); gap: 5px; }
+.calendar-tool-colour-palette .colour-option { width: 18px; height: 18px; min-height: 0; border-radius: 5px; }
+.calendar-tool-colour-palette .colour-option[aria-pressed="true"] { border-color: #263142; box-shadow: 0 0 0 2px #fff, 0 0 0 4px #263142; }
+.calendar-tool-button:focus-visible { outline: 2px solid #315be9; outline-offset: 3px; }
+.day-mark-error { margin: 0 20px 12px; }
+.calendar-cell.day-has-fill .cell-button:not(.event),
+.calendar-cell.day-has-fill .cell-weekday,
+.calendar-cell.day-has-fill:not(.today) .date-number { background: var(--day-fill-colour); }
+.day-ring-layer { position: absolute; z-index: 7; inset: 0; pointer-events: none; }
+.day-ring { position: absolute; width: 50px; height: 44px; overflow: visible; color: var(--day-ring-colour); isolation: isolate; mix-blend-mode: multiply; }
+.day-ring .main-stroke, .day-ring .echo-stroke { fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; }
+.day-ring .main-stroke { stroke-width: 1.8; }
+.day-ring .echo-stroke { stroke-width: 1.05; opacity: 0.7; }
+.year-columns.day-tool-active .calendar-cell:not(.blank),
+.year-columns.day-tool-active .calendar-cell:not(.blank) button { cursor: crosshair; }
+
 .year-columns {
+  position: relative;
   display: grid;
   grid-template-columns: repeat(12, minmax(100px, 1fr));
   min-width: 1201px;

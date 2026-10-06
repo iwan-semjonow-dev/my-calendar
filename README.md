@@ -17,6 +17,7 @@ The project is a working yearly prototype in active development. The application
 - Drag a thought onto a calendar date to schedule it alongside existing events. Its full text, colour, and source identity are retained after reloading; it leaves the undated strip. Scheduled thoughts can be viewed, edited, deleted with confirmation, saved as templates, or added to history.
 - Undo the latest thought placement within nine seconds, or return it through its event card later. The thought returns to the start of the strip with its current text and colour; its description is retained for scheduling it again.
 - A shared 16-colour palette for creating thoughts and for creating and editing events.
+- Add independent day fills and hand-drawn rounded outlines with the same 16-colour palette. Marks persist across reloads and year changes without changing events or thoughts. Click the active tool again, press Escape, or click an empty area of the calendar panel to leave marking mode.
 - Save an event's title, colour, and description as an independent template. Apply a template when creating an event, keep the selected date, and adjust the fields before creation.
 - Manually add independent event snapshots to a chronological history strip. Editing or deleting the original event does not change its snapshots. Deleting a snapshot requires confirmation.
 - Three yearly scales: Compact, Standard, and Large. Selection gives an immediate preview; cancellation restores the previous scale, and saving retains the choice. Scale changes text size and the widths of the date number and weekday areas; row height stays the same.
@@ -29,6 +30,7 @@ The project is a working yearly prototype in active development. The application
 | History snapshots | localStorage | Retained between reloads after a successful save |
 | Thoughts | localStorage | Retained between reloads |
 | Scheduled thoughts | localStorage | Retained between reloads after a successful save |
+| Day fills and outlines | localStorage | Retained between reloads after a successful save |
 | Event templates | localStorage | Retained between reloads |
 | Yearly scale setting | localStorage | Retained between reloads |
 | Filter selection | In memory | Reset |
