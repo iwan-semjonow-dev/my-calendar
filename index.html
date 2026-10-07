@@ -63,6 +63,9 @@
                 <button class="calendar-tool-button" type="button" data-calendar-tool="ring" aria-pressed="false" title="Круглая обводка" aria-label="Круглая обводка">
                   <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="6.5" fill="none" stroke="currentColor" stroke-width="2" /><path d="M17.5 6.5 20 4" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.8" /></svg>
                 </button>
+                <button class="calendar-tool-button erase" type="button" data-calendar-tool="erase" aria-pressed="false" title="Ластик" aria-label="Ластик">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 18-3-3 8-8 5 5-6 6zM11 18h8" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" /></svg>
+                </button>
               </div>
               <div class="calendar-tool-colour-palette" id="day-mark-palette" role="group" aria-label="Цвет отметки дня"></div>
             </div>
@@ -322,6 +325,24 @@
           <button class="day-secondary" type="button" id="cancel-event-delete">Отмена</button>
           <button class="day-primary" type="button" id="confirm-event-delete" aria-describedby="event-delete-notice">Удалить событие</button>
         </div>
+      </section>
+    </div>
+    <div class="day-backdrop" id="day-mark-erase-dialog" role="dialog" aria-modal="true" aria-labelledby="day-mark-erase-title" aria-describedby="day-mark-erase-help" hidden>
+      <section class="day-dialog">
+        <header class="day-dialog-header">
+          <h2 id="day-mark-erase-title">Что удалить?</h2>
+          <button class="settings-close" type="button" data-close-dialog aria-label="Закрыть выбор">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6 18 18M18 6 6 18" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="2.2" /></svg>
+          </button>
+        </header>
+        <p class="yearly-fixed-date" id="day-mark-erase-date"></p>
+        <p class="day-dialog-help" id="day-mark-erase-help"></p>
+        <div class="day-dialog-footer" id="day-mark-erase-actions"></div>
+        <p class="settings-error" id="day-mark-erase-error" role="alert" hidden></p>
+        <footer class="day-dialog-footer">
+          <button class="day-secondary" type="button" id="cancel-day-erase" data-close-dialog>Отмена</button>
+          <button class="day-primary" type="button" id="confirm-day-erase" hidden>Удалить</button>
+        </footer>
       </section>
     </div>
   </body>

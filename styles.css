@@ -96,6 +96,8 @@ h1 {
 .calendar-tool-button svg { width: 17px; height: 17px; }
 .calendar-tool-button:hover { border-color: #aebfe9; background: #f6f8fd; }
 .calendar-tool-button[aria-pressed="true"] { color: #244ebc; border-color: #89a4e8; background: #eef3ff; box-shadow: inset 0 0 0 1px #89a4e8; }
+.calendar-tool-button.erase[aria-pressed="true"] { color: #ae3341; border-color: #e2aeb4; background: #fff4f4; box-shadow: inset 0 0 0 1px #e2aeb4; }
+#day-mark-erase-actions[hidden], #confirm-day-erase[hidden] { display: none; }
 .calendar-tool-colour-palette { display: grid; grid-template-columns: repeat(8, 18px); gap: 5px; }
 .calendar-tool-colour-palette .colour-option { width: 18px; height: 18px; min-height: 0; border-radius: 5px; }
 .calendar-tool-colour-palette .colour-option[aria-pressed="true"] { border-color: #263142; box-shadow: 0 0 0 2px #fff, 0 0 0 4px #263142; }

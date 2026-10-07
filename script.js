@@ -40,6 +40,13 @@ const calendarScroll = document.querySelector(".calendar-scroll");
 const dayMarkStorageKey = "my-calendar-year-day-marks-v2";
 const dayMarkError = document.querySelector("#day-mark-error");
 const dayMarkPalette = document.querySelector("#day-mark-palette");
+const dayEraseDialog = document.querySelector("#day-mark-erase-dialog");
+const dayEraseActions = document.querySelector("#day-mark-erase-actions");
+const dayEraseHelp = document.querySelector("#day-mark-erase-help");
+const dayEraseError = document.querySelector("#day-mark-erase-error");
+const dayEraseConfirm = document.querySelector("#confirm-day-erase");
+const dayEraseCancel = document.querySelector("#cancel-day-erase");
+let pendingDayErase = null;
 const calendarToolButtons = [...document.querySelectorAll("[data-calendar-tool]")];
 let dayMarks = {};
 let dayMarkStorageSnapshot = null;
@@ -223,6 +230,147 @@ function saveDayMark(cell) {
   showEventStorageError(dayMarkError);
   applyDayMark(cell);
   scheduleDayRings();
+}
+
+function openDayErase(cell) {
+  const key = cell.dataset.date;
+  if (!isCalendarDate(key)) return;
+  const mark = dayMarks[key] || {};
+  const count = events[key]?.length || 0;
+  const choices = [
+    mark.fill && ["fill", "Только заливку"],
+    mark.ring && ["ring", "Только обводку"],
+    count && ["events", count === 1 ? "Событие" : "Все события дня"],
+  ].filter(Boolean);
+  pendingDayErase = { key, part: null, completed: [] };
+  document.querySelector("#day-mark-erase-title").textContent = "Что удалить?";
+  document.querySelector("#day-mark-erase-date").textContent = formatDate(key);
+  dayEraseHelp.textContent = `В этой ячейке: ${[mark.fill && "заливка", mark.ring && "обводка", count && `записей: ${count}`].filter(Boolean).join(", ") || "нет доступных слоёв"}.`;
+  dayEraseActions.replaceChildren();
+  if (choices.length > 1) choices.push(["all", "Удалить всё"]);
+  for (const [part, label] of choices) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = part === "all" ? "day-primary" : "day-secondary";
+    button.dataset.eraseDayMark = part;
+    button.textContent = label;
+    dayEraseActions.append(button);
+  }
+  dayEraseActions.hidden = false;
+  dayEraseConfirm.hidden = true;
+  dayEraseConfirm.textContent = "Удалить";
+  showEventStorageError(dayEraseError);
+  openDialog(dayEraseDialog, cell.querySelector("button[data-date]"), dayEraseCancel);
+}
+
+function chooseDayErase(part) {
+  if (!pendingDayErase || pendingDayErase.part) return;
+  pendingDayErase.part = part;
+  dayEraseActions.hidden = true;
+  dayEraseConfirm.hidden = false;
+  const { key } = pendingDayErase;
+  const count = events[key]?.length || 0;
+  const mark = dayMarks[key] || {};
+  const layers = [
+    (part === "fill" || part === "all") && mark.fill && "заливка",
+    (part === "ring" || part === "all") && mark.ring && "обводка",
+    (part === "events" || part === "all") && count && `события и размещённые мысли — записей: ${count}`,
+  ].filter(Boolean);
+  dayEraseHelp.textContent = `Будут удалены: ${layers.join(", ")}. Размещённые мысли не возвращаются в ленту.`;
+  if ((part === "events" || part === "all") && count) {
+    document.querySelector("#day-mark-erase-title").textContent = "Подтвердите удаление";
+    dayEraseCancel.focus({ preventScroll: true });
+  } else executeDayErase();
+}
+
+function checkDayEraseStorage(part) {
+  const stores = [];
+  if (part !== "events") stores.push([dayMarkStorageKey, dayMarkStorageSnapshot, dayMarkStorageBlocked]);
+  if (part === "events" || part === "all") {
+    stores.push([eventStorageKey, eventStorageSnapshot, eventStorageBlocked],
+      [placementStorageKey, placementStorageSnapshot, placementStorageBlocked],
+      [thoughtStorageKey, thoughtStorageSnapshot, thoughtStorageBlocked]);
+  }
+  for (const [key, snapshot, blocked] of stores) {
+    if (blocked) throw new Error("Хранилище повреждено или недоступно. Восстановите данные и перезагрузите страницу.");
+    if (localStorage.getItem(key) !== snapshot) throw new Error("Данные изменились в другой вкладке. Перезагрузите страницу перед повторной попыткой.");
+  }
+}
+
+function executeDayErase() {
+  if (activeDialog !== dayEraseDialog || !pendingDayErase?.part) return;
+  const operation = pendingDayErase;
+  const { key, part, completed } = operation;
+  let step = "проверка хранилищ";
+  // Each successful write is committed to memory independently. Never roll back
+  // over another tab. A retry derives only the remaining work from this state.
+  const write = (label, storageKey, value, commit) => {
+    step = label;
+    checkDayEraseStorage(part);
+    const raw = JSON.stringify(value);
+    localStorage.setItem(storageKey, raw);
+    commit(raw);
+    completed.push(label);
+  };
+  try {
+    checkDayEraseStorage(part);
+    if (part === "events" || part === "all") {
+      const removed = thoughtPlacements.filter((item) => item.date === key);
+      const ids = new Set(removed.map((item) => item.id));
+      const thoughtIds = new Set(removed.map((item) => item.thoughtId));
+      const inbox = parseThoughts(thoughtStorageSnapshot);
+      const remainingInbox = inbox.filter((item) => !thoughtIds.has(item.id));
+      // Remove only these placements' recovery copies BEFORE deleting placements.
+      // If the next write fails, the placement remains authoritative after reload.
+      if (remainingInbox.length !== inbox.length) {
+        write("удаление резервных копий выбранных мыслей", thoughtStorageKey, remainingInbox, (raw) => {
+          thoughtStorageSnapshot = raw;
+          thoughts = undatedThoughts(remainingInbox);
+        });
+      }
+      if (removed.length) {
+        write(`удаление размещённых мыслей: ${removed.length}`, placementStorageKey,
+          thoughtPlacements.filter((item) => !ids.has(item.id)), (raw) => {
+            placementStorageSnapshot = raw;
+            thoughtPlacements = thoughtPlacements.filter((item) => !ids.has(item.id));
+            events[key] = (events[key] || []).filter((event) => !ids.has(placedEvents.get(event)));
+            if (ids.has(undoThoughtPlacementId)) hideThoughtUndo();
+          });
+      }
+      const normalCount = (events[key] || []).filter((event) => !placedEvents.has(event)).length;
+      if (normalCount) {
+        const next = JSON.parse(eventStorageSnapshot);
+        delete next[key];
+        write(`удаление обычных событий: ${normalCount}`, eventStorageKey, next, (raw) => {
+          eventStorageSnapshot = raw;
+          events[key] = (events[key] || []).filter((event) => placedEvents.has(event));
+        });
+      }
+    }
+    const mark = dayMarks[key] || {};
+    const parts = ["fill", "ring"].filter((layer) => (part === layer || part === "all") && mark[layer]);
+    if (parts.length) {
+      const nextMark = { ...mark };
+      parts.forEach((layer) => { nextMark[layer] = ""; });
+      write(`удаление отметок: ${parts.map((layer) => layer === "fill" ? "заливка" : "обводка").join(", ")}`,
+        dayMarkStorageKey, { ...dayMarks, [key]: nextMark }, (raw) => {
+          dayMarkStorageSnapshot = raw;
+          dayMarks = { ...dayMarks, [key]: nextMark };
+        });
+    }
+  } catch (error) {
+    showEventStorageError(dayEraseError, `${completed.length ? `Выполнено: ${completed.join("; ")}.` : "Ничего не удалено."} Не выполнено: ${step}; оставшаяся часть операции остановлена. ${error.message} После устранения проблемы нажмите «Повторить оставшееся». Выполненные шаги при закрытии окна не отменяются.`);
+    dayEraseConfirm.textContent = "Повторить оставшееся";
+    dayEraseCancel.focus({ preventScroll: true });
+    return;
+  } finally {
+    if (events[key]?.length === 0) delete events[key];
+    refreshDate(key);
+    applyDayMark(calendar.querySelector(`.calendar-cell[data-date="${key}"]`));
+    scheduleDayRings();
+  }
+  pendingDayErase = null;
+  closeDialog();
 }
 
 function scheduleDayRings() {
@@ -1311,6 +1459,7 @@ function closeDialog() {
   pendingHistoryRecord = null;
   activeThoughtId = null;
   pendingThought = null;
+  pendingDayErase = null;
 }
 
 function getEventTitleInput() {
@@ -1527,7 +1676,8 @@ calendar.addEventListener("click", (event) => {
   if (suppressThoughtClick && event.detail !== 0) return;
   const cell = event.target.closest(".calendar-cell[data-date]");
   if (activeCalendarTool && cell) {
-    saveDayMark(cell);
+    if (activeCalendarTool === "erase") openDayErase(cell);
+    else saveDayMark(cell);
     return;
   }
   const button = event.target.closest("button[data-date]");
@@ -1541,6 +1691,11 @@ calendar.addEventListener("click", (event) => {
 
 calendar.addEventListener("pointerdown", () => { suppressThoughtClick = false; });
 calendarToolButtons.forEach((button) => button.addEventListener("click", () => setCalendarTool(button.dataset.calendarTool)));
+dayEraseActions.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-erase-day-mark]");
+  if (button) chooseDayErase(button.dataset.eraseDayMark);
+});
+dayEraseConfirm.addEventListener("click", executeDayErase);
 document.querySelector(".calendar-panel").addEventListener("click", (event) => {
   if (activeCalendarTool && !event.target.closest(".calendar-cell[data-date], [data-calendar-tool], #day-mark-palette button, [data-go-today]")) setCalendarTool(null);
 });
@@ -1650,7 +1805,7 @@ scaleButtons.forEach((button) => button.addEventListener("click", () => {
 }));
 document.querySelector("#save-year-settings").addEventListener("click", saveYearSettings);
 
-for (const dialog of [creationDialog, cardDialog, listDialog, filtersDialog, thoughtDialog, thoughtDeleteDialog, historyDeleteDialog, settingsDialog]) {
+for (const dialog of [creationDialog, cardDialog, listDialog, filtersDialog, thoughtDialog, thoughtDeleteDialog, historyDeleteDialog, settingsDialog, dayEraseDialog]) {
   dialog.addEventListener("click", (event) => {
     if (event.target === dialog || event.target.closest("[data-close-dialog]")) dismissDialog();
     else if (event.target.closest("[data-back-to-list]")) openDayEvents(listDate);
