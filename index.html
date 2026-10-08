@@ -265,6 +265,9 @@
         <p class="day-dialog-help" id="yearly-event-help">После успешного сохранения событие остаётся в этом браузере между перезагрузками. Это не облачная синхронизация и не резервная копия.</p>
         <form class="yearly-form" id="yearly-event-form">
           <p class="yearly-fixed-date" id="yearly-event-date"></p>
+          <label class="yearly-field" id="yearly-event-date-edit-field" for="yearly-event-date-input" hidden>Дата
+            <input id="yearly-event-date-input" name="date" type="date" min="0001-01-01" max="9999-12-31" required disabled />
+          </label>
           <label class="yearly-field" id="yearly-event-template-field" for="yearly-event-template">Создать из шаблона
             <select id="yearly-event-template" aria-describedby="yearly-event-template-help"></select>
             <span class="yearly-field-help" id="yearly-event-template-help" role="status"></span>

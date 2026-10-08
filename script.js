@@ -81,6 +81,7 @@ const dayEventList = document.querySelector("#day-event-list");
 const createFromList = document.querySelector("#create-event-from-list");
 const eventForm = document.querySelector("#yearly-event-form");
 const nameInput = document.querySelector("#yearly-event-name");
+const eventDateInput = document.querySelector("#yearly-event-date-input");
 const placedThoughtText = document.querySelector("#yearly-placed-thought-text");
 const editButton = document.querySelector("#edit-event");
 const deleteButton = document.querySelector("#delete-event");
@@ -776,7 +777,7 @@ function savePlacedEvent(event, changes, errorElement) {
   }
   const next = changes
     ? thoughtPlacements.map((item) => item.id === id
-      ? { ...item, title: changes.title, colour: changes.colour.slice("thought-".length), type: changes.colour, description: changes.description }
+      ? { ...item, date: changes.date ?? item.date, title: changes.title, colour: changes.colour.slice("thought-".length), type: changes.colour, description: changes.description }
       : item)
     : thoughtPlacements.filter((item) => item.id !== id);
   return saveThoughtPlacements(next, errorElement);
@@ -1470,6 +1471,11 @@ function prepareEventForm(key, event = null) {
   creationDate = key;
   editingEvent = event;
   eventForm.reset();
+  eventDateInput.closest("label").hidden = !event;
+  eventDateInput.disabled = !event;
+  eventDateInput.value = key;
+  eventDateInput.setCustomValidity("");
+  document.querySelector("#yearly-event-date").hidden = Boolean(event);
   const isPlacedThought = placedEvents.has(event);
   nameInput.closest("label").hidden = isPlacedThought;
   nameInput.disabled = isPlacedThought;
@@ -1555,7 +1561,7 @@ function cancelDeletion() {
 
 function refreshDate(key) {
   const button = calendar.querySelector(`[data-action="open-day"][data-date="${key}"]`);
-  updateEventButton(button, key);
+  if (button) updateEventButton(button, key);
   syncYearFilters();
 }
 
@@ -1621,34 +1627,53 @@ function openDayEvents(key, opener = null) {
 
 function submitEvent(event) {
   event.preventDefault();
+  if (!creationDate || activeDialog !== creationDialog) return;
+  const sourceDate = creationDate;
+  const targetDate = editingEvent ? eventDateInput.value : sourceDate;
+  const targetYear = Number(targetDate.slice(0, 4));
+  const validDate = isCalendarDate(targetDate) && targetYear >= minimumYear && targetYear <= maximumYear;
+  eventDateInput.setCustomValidity(editingEvent && !validDate ? "Введите существующую дату от 01.01.0001 до 31.12.9999." : "");
   const titleInput = getEventTitleInput();
   const title = titleInput.value.trim();
   titleInput.setCustomValidity(title ? "" : (placedEvents.has(editingEvent) ? "Введите текст мысли." : "Введите название события."));
-  if (!eventForm.reportValidity()) return;
-  if (!creationDate) return;
+  if (!eventForm.reportValidity() || !validDate) return;
 
   const changes = {
     title,
     colour: eventForm.elements.colour.value,
     description: eventForm.elements.description.value.trim(),
   };
-  const dayEvents = events[creationDate] || [];
+  const dayEvents = events[sourceDate] || [];
   const index = editingEvent ? dayEvents.indexOf(editingEvent) : -1;
   if (editingEvent && index < 0) return;
   if (editingEvent) storedEventRecords.set(changes, storedEventRecords.get(editingEvent));
-  const nextDay = editingEvent
-    ? dayEvents.map((item, position) => position === index ? changes : item)
-    : [...dayEvents, changes];
+  const moved = editingEvent && targetDate !== sourceDate;
+  const nextEvents = { ...events };
+  if (moved) {
+    nextEvents[sourceDate] = dayEvents.filter((item) => item !== editingEvent);
+    if (!nextEvents[sourceDate].length) delete nextEvents[sourceDate];
+    nextEvents[targetDate] = [...(events[targetDate] || []), changes];
+  } else {
+    nextEvents[sourceDate] = editingEvent
+      ? dayEvents.map((item, position) => position === index ? changes : item)
+      : [...dayEvents, changes];
+  }
   if (placedEvents.has(editingEvent)) {
-    if (!savePlacedEvent(editingEvent, changes, eventSaveError)) return;
-  } else if (!saveYearEvents({ ...events, [creationDate]: nextDay }, eventSaveError)) return;
+    if (!savePlacedEvent(editingEvent, { ...changes, date: targetDate }, eventSaveError)) return;
+  } else if (!saveYearEvents(nextEvents, eventSaveError)) return;
   if (editingEvent) {
     Object.assign(editingEvent, changes);
+    if (moved) {
+      dayEvents.splice(index, 1);
+      if (!dayEvents.length) delete events[sourceDate];
+      (events[targetDate] ||= []).push(editingEvent);
+      if (undoThoughtPlacementId === placedEvents.get(editingEvent)) hideThoughtUndo();
+    }
   } else {
-    if (!events[creationDate]) events[creationDate] = [];
-    events[creationDate].push(changes);
+    (events[sourceDate] ||= []).push(changes);
   }
-  refreshDate(creationDate);
+  refreshDate(sourceDate);
+  if (moved) refreshDate(targetDate);
   closeDialog();
 }
 
@@ -1813,6 +1838,7 @@ for (const dialog of [creationDialog, cardDialog, listDialog, filtersDialog, tho
 }
 document.addEventListener("keydown", handleDialogKeydown);
 nameInput.addEventListener("input", () => nameInput.setCustomValidity(""));
+eventDateInput.addEventListener("input", () => eventDateInput.setCustomValidity(""));
 placedThoughtText.addEventListener("input", () => placedThoughtText.setCustomValidity(""));
 eventForm.addEventListener("submit", submitEvent);
 

@@ -10,6 +10,7 @@ The project is a working yearly prototype in active development. The application
 - Jump to today's local date from any year, scroll it into view, and briefly highlight the cell.
 - Valid dates and weekdays, including leap years, with distinct styling for weekends, past days, and today.
 - Create, view, and edit events, and delete them with confirmation. Events have a date, title, colour, and description, without start or end times.
+- Change an event's or scheduled thought's date in its editor, including moves to another year. A move adds it to the end of the destination day's list without replacing existing entries; saving on the same date keeps its position. The calendar stays on the displayed year, and day marks, history snapshots, and templates stay unchanged.
 - Multiple events on one date, a counter for additional events, and a list of the day's events.
 - Filters by event title that highlight matches and dim other events while keeping every date in the grid.
 - Create undated thoughts in a horizontal card strip above the calendar, edit their text and colour, and delete them with confirmation.
