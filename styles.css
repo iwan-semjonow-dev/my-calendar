@@ -443,6 +443,10 @@ h1 {
 .colour-option[aria-pressed="true"] { border-color: #263142; box-shadow: 0 0 0 2px #fff, 0 0 0 4px #263142; }
 .colour-option:focus-visible { outline: 2px solid #315be9; outline-offset: 3px; }
 .legacy-colour { margin: 0; color: #718095; font-size: 11px; font-weight: 600; line-height: 1.35; }
+#delete-template[hidden] { display: none; }
+#template-name { min-height: 60px; }
+#template-list .day-event-name { font-weight: 600; white-space: pre-wrap; overflow-wrap: anywhere; }
+#template-delete-help { white-space: pre-wrap; overflow-wrap: anywhere; }
 
 .thought.yellow, .event.thought-yellow, .day-event-dot.thought-yellow, .colour-option.yellow { background: #ffe39a; }
 .thought.amber, .event.thought-amber, .day-event-dot.thought-amber, .colour-option.amber { background: #ffd08a; }

@@ -113,6 +113,25 @@ const templateField = document.querySelector("#yearly-event-template-field");
 const templateHelp = document.querySelector("#yearly-event-template-help");
 const templateNotice = document.querySelector("#event-template-notice");
 let savedTemplates = [];
+const templatesButton = document.querySelector("#open-templates");
+const templatesDialog = document.querySelector("#templates-dialog");
+const templateList = document.querySelector("#template-list");
+const templatesError = document.querySelector("#templates-error");
+const templatesNotice = document.querySelector("#templates-notice");
+const createTemplateButton = document.querySelector("#create-template");
+const templateDialog = document.querySelector("#template-card-dialog");
+const templateForm = document.querySelector("#template-form");
+const templateName = document.querySelector("#template-name");
+const templateDescription = document.querySelector("#template-description");
+const templatePalette = document.querySelector("#template-colour-palette");
+const templateSaveError = document.querySelector("#template-save-error");
+const templateDeleteButton = document.querySelector("#delete-template");
+const templateDeleteDialog = document.querySelector("#template-delete-dialog");
+const templateDeleteError = document.querySelector("#template-delete-error");
+let templateLibrary = [];
+let templateEditorSnapshot = null;
+let activeTemplateId = null;
+let pendingTemplateId = null;
 const thoughtDialog = document.querySelector("#thought-dialog");
 const thoughtForm = document.querySelector("#thought-form");
 const thoughtText = document.querySelector("#thought-text");
@@ -1077,10 +1096,9 @@ function getEventColourName(colour) {
   return colourNames[colour] || templateColourNames[colour];
 }
 
-function readSavedTemplates() {
+function readTemplateStore() {
   const raw = localStorage.getItem(templateStorageKey);
-  if (raw === null) return [];
-  const items = JSON.parse(raw);
+  const items = raw === null ? [] : JSON.parse(raw);
   const ids = new Set();
   if (!Array.isArray(items) || !items.every((item) => {
     if (!item || typeof item.id !== "string" || !item.id.trim() || ids.has(item.id)
@@ -1089,7 +1107,160 @@ function readSavedTemplates() {
     ids.add(item.id);
     return true;
   })) throw new Error("Invalid templates data");
-  return items;
+  return { raw, items };
+}
+
+function readSavedTemplates() {
+  return readTemplateStore().items;
+}
+
+function findMatchingTemplate(items, candidate) {
+  return items.find((item) => item.title === candidate.title && item.type === candidate.type && item.description === candidate.description);
+}
+
+function writeTemplates(items, expectedRaw, errorElement) {
+  try {
+    if (localStorage.getItem(templateStorageKey) !== expectedRaw) {
+      showEventStorageError(errorElement, "Шаблоны изменились в другой вкладке. Запись остановлена. Скопируйте черновик перед закрытием редактора и откройте библиотеку заново.");
+      return false;
+    }
+    localStorage.setItem(templateStorageKey, JSON.stringify(items));
+  } catch {
+    showEventStorageError(errorElement, "Не удалось сохранить шаблоны. Данные и черновик не изменены. Проверьте доступ к хранилищу и повторите попытку.");
+    return false;
+  }
+  savedTemplates = items;
+  templateLibrary = items;
+  showEventStorageError(errorElement);
+  return true;
+}
+
+function loadTemplateLibrary() {
+  try {
+    const store = readTemplateStore();
+    templateLibrary = store.items;
+    templateEditorSnapshot = store.raw;
+    showEventStorageError(templatesError);
+    createTemplateButton.disabled = false;
+    return true;
+  } catch {
+    showEventStorageError(templatesError, "Не удалось загрузить шаблоны: данные повреждены или хранилище недоступно. Сохранения не изменены. После восстановления закройте и снова откройте библиотеку.");
+    createTemplateButton.disabled = true;
+    return false;
+  }
+}
+
+function getTemplateRow(id) {
+  return [...templateList.querySelectorAll("button")].find((button) => button.dataset.templateId === id);
+}
+
+function showTemplateLibrary(focusId = null, notice = "", reload = true) {
+  const available = !reload || loadTemplateLibrary();
+  templateList.replaceChildren();
+  document.querySelector("#templates-empty").hidden = !available || templateLibrary.length > 0;
+  if (available) for (const template of templateLibrary) {
+    const row = document.createElement("button");
+    row.type = "button";
+    row.className = "day-event-row";
+    row.dataset.templateId = template.id;
+    const dot = document.createElement("span");
+    dot.className = `day-event-dot ${template.type}`;
+    dot.setAttribute("aria-hidden", "true");
+    const copy = document.createElement("span");
+    copy.className = "day-event-copy";
+    const title = document.createElement("span");
+    title.className = "day-event-name";
+    title.textContent = template.title;
+    const description = document.createElement("span");
+    description.className = "day-event-description";
+    description.textContent = template.description || `${getEventColourName(template.type)} · шаблон события`;
+    copy.append(title, description);
+    row.append(dot, copy);
+    templateList.append(row);
+  }
+  activeTemplateId = null;
+  pendingTemplateId = null;
+  showEventStorageError(templatesNotice, notice);
+  openDialog(templatesDialog, templatesButton, getTemplateRow(focusId) || (available ? createTemplateButton : templatesDialog.querySelector("[data-close-dialog]")));
+}
+
+function setTemplateColour(colour) {
+  templateForm.elements.colour.value = colour;
+  updateColourPalette(templatePalette, colour);
+  const legacy = document.querySelector("#template-legacy-colour");
+  legacy.hidden = calendarPalette.some(({ value }) => toEventColour(value) === colour);
+  legacy.textContent = legacy.hidden ? "" : `Текущий цвет: ${getEventColourName(colour)}. Он останется, пока вы не выберете другой.`;
+}
+
+function openTemplateEditor(id = null) {
+  if (!loadTemplateLibrary()) return;
+  const template = templateLibrary.find((item) => item.id === id);
+  if (id !== null && !template) {
+    showTemplateLibrary(null, "Этот шаблон уже удалён. Список обновлён.");
+    return;
+  }
+  activeTemplateId = id;
+  pendingTemplateId = null;
+  templateForm.reset();
+  templateName.maxLength = Math.max(60, template?.title.length || 0);
+  templateDescription.maxLength = Math.max(240, template?.description.length || 0);
+  templateName.value = template?.title ?? "";
+  templateDescription.value = template?.description ?? "";
+  templateName.setCustomValidity("");
+  setTemplateColour(template?.type ?? toEventColour("yellow"));
+  document.querySelector("#template-card-title").textContent = template ? "Редактировать шаблон" : "Новый шаблон";
+  templateForm.querySelector("[type=submit]").textContent = template ? "Сохранить изменения" : "Создать шаблон";
+  templateDeleteButton.hidden = !template;
+  showEventStorageError(templateSaveError);
+  openDialog(templateDialog, null, templateName);
+}
+
+function submitTemplate(event) {
+  event.preventDefault();
+  if (activeDialog !== templateDialog) return;
+  const title = templateName.value;
+  templateName.setCustomValidity(title.trim() ? "" : "Введите название шаблона.");
+  if (!templateForm.reportValidity()) return;
+  const changes = { title, type: templateForm.elements.colour.value, description: templateDescription.value };
+  const existing = templateLibrary.find((item) => item.id === activeTemplateId);
+  const duplicate = activeTemplateId === null && findMatchingTemplate(templateLibrary, changes);
+  if (duplicate) {
+    // A no-op still must not claim a stale template exists after a remote change.
+    try {
+      if (localStorage.getItem(templateStorageKey) !== templateEditorSnapshot) throw new Error();
+    } catch {
+      showEventStorageError(templateSaveError, "Не удалось проверить шаблоны: хранилище недоступно или изменилось в другой вкладке. Черновик сохранён; откройте библиотеку заново после проверки.");
+      return;
+    }
+    showTemplateLibrary(duplicate.id, "Такой шаблон уже сохранён. Новая запись не создана.", false);
+    return;
+  }
+  if (activeTemplateId !== null && !existing) return;
+  const id = existing?.id ?? (pendingTemplateId ||= `template-${crypto.randomUUID()}`);
+  const next = existing
+    ? templateLibrary.map((item) => item.id === id ? { ...item, ...changes } : item)
+    : [...templateLibrary, { id, ...changes }];
+  if (!writeTemplates(next, templateEditorSnapshot, templateSaveError)) return;
+  renderTemplateOptions();
+  showTemplateLibrary(id, "Шаблон сохранён.", false);
+}
+
+function requestTemplateDeletion() {
+  const template = templateLibrary.find((item) => item.id === activeTemplateId);
+  if (!template || activeDialog !== templateDialog) return;
+  document.querySelector("#template-delete-help").textContent = `Удалить шаблон «${template.title}»? Уже созданные события и история останутся без изменений.`;
+  showEventStorageError(templateDeleteError);
+  openDialog(templateDeleteDialog, null, document.querySelector("#cancel-template-delete"));
+}
+
+function confirmTemplateDeletion() {
+  if (activeDialog !== templateDeleteDialog || activeTemplateId === null) return;
+  const index = templateLibrary.findIndex((item) => item.id === activeTemplateId);
+  if (index < 0) return;
+  const next = templateLibrary.filter((item) => item.id !== activeTemplateId);
+  if (!writeTemplates(next, templateEditorSnapshot, templateDeleteError)) return;
+  renderTemplateOptions();
+  showTemplateLibrary((next[index] || next[index - 1])?.id, "Шаблон удалён.", false);
 }
 
 function renderTemplateOptions() {
@@ -1113,7 +1284,7 @@ function renderTemplateOptions() {
   templateSelect.disabled = savedTemplates.length === 0;
   templateHelp.textContent = error || (savedTemplates.length
     ? "Шаблон заполнит название, цвет и описание. Дата останется выбранной здесь."
-    : "Сначала откройте событие и нажмите «Сохранить как шаблон».");
+    : "Создайте шаблон в библиотеке «Шаблоны» или сохраните его из карточки события.");
 }
 
 function toEventColour(colour) {
@@ -1170,25 +1341,21 @@ function saveEventTemplate() {
   if (!selectedEvent || pendingDeletion || activeDialog !== cardDialog) return;
   const { title, colour: type, description } = selectedEvent.event;
   templateNotice.hidden = false;
-  let templates;
+  let store;
   try {
-    templates = readSavedTemplates();
+    store = readTemplateStore();
   } catch {
     templateNotice.textContent = "Не удалось прочитать шаблоны: данные повреждены или хранилище недоступно. Сохранение отменено, существующие данные не изменены.";
     return;
   }
-  if (templates.some((item) => item.title === title && item.type === type && item.description === description)) {
+  if (findMatchingTemplate(store.items, { title, type, description })) {
     templateNotice.textContent = `Шаблон «${title}» уже сохранён.`;
     return;
   }
-  try {
-    const template = { id: `template-${crypto.randomUUID()}`, title, type, description };
-    localStorage.setItem(templateStorageKey, JSON.stringify([...templates, template]));
-  } catch {
-    templateNotice.textContent = "Не удалось сохранить шаблон. Проверьте доступ к хранилищу и свободное место, затем попробуйте ещё раз.";
-    return;
-  }
+  const template = { id: `template-${crypto.randomUUID()}`, title, type, description };
+  if (!writeTemplates([...store.items, template], store.raw, templateNotice)) return;
   templateNotice.textContent = `Шаблон «${title}» сохранён. Его можно выбрать при создании следующего события.`;
+  templateNotice.hidden = false;
 }
 
 function getDateKey(year, monthIndex, day) {
@@ -1586,7 +1753,9 @@ function confirmDeletion() {
 }
 
 function dismissDialog() {
-  if (activeDialog === thoughtDeleteDialog) cancelThoughtDeletion();
+  if (activeDialog === templateDialog) showTemplateLibrary(activeTemplateId);
+  else if (activeDialog === templateDeleteDialog) openDialog(templateDialog, null, templateDeleteButton);
+  else if (activeDialog === thoughtDeleteDialog) cancelThoughtDeletion();
   else if (activeDialog === creationDialog && editingEvent) cancelEditing();
   else if (activeDialog === cardDialog && pendingDeletion) cancelDeletion();
   else closeDialog();
@@ -1830,7 +1999,7 @@ scaleButtons.forEach((button) => button.addEventListener("click", () => {
 }));
 document.querySelector("#save-year-settings").addEventListener("click", saveYearSettings);
 
-for (const dialog of [creationDialog, cardDialog, listDialog, filtersDialog, thoughtDialog, thoughtDeleteDialog, historyDeleteDialog, settingsDialog, dayEraseDialog]) {
+for (const dialog of [creationDialog, cardDialog, listDialog, filtersDialog, thoughtDialog, thoughtDeleteDialog, historyDeleteDialog, settingsDialog, dayEraseDialog, templatesDialog, templateDialog, templateDeleteDialog]) {
   dialog.addEventListener("click", (event) => {
     if (event.target === dialog || event.target.closest("[data-close-dialog]")) dismissDialog();
     else if (event.target.closest("[data-back-to-list]")) openDayEvents(listDate);
@@ -1841,6 +2010,17 @@ nameInput.addEventListener("input", () => nameInput.setCustomValidity(""));
 eventDateInput.addEventListener("input", () => eventDateInput.setCustomValidity(""));
 placedThoughtText.addEventListener("input", () => placedThoughtText.setCustomValidity(""));
 eventForm.addEventListener("submit", submitEvent);
+templatesButton.addEventListener("click", () => showTemplateLibrary());
+createTemplateButton.addEventListener("click", () => openTemplateEditor());
+templateList.addEventListener("click", (event) => {
+  const row = event.target.closest("[data-template-id]");
+  if (row) openTemplateEditor(row.dataset.templateId);
+});
+templateForm.addEventListener("submit", submitTemplate);
+templateName.addEventListener("input", () => templateName.setCustomValidity(""));
+templateDeleteButton.addEventListener("click", requestTemplateDeletion);
+document.querySelector("#confirm-template-delete").addEventListener("click", confirmTemplateDeletion);
+createColourPalette(templatePalette, toEventColour, setTemplateColour);
 
 createColourPalette(thoughtColourPalette, (colour) => colour, setThoughtColour);
 createColourPalette(eventColourPalette, toEventColour, setEventColour);

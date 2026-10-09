@@ -25,6 +25,7 @@
               </button>
             </div>
           </div>
+          <button class="action-button" type="button" id="open-templates" aria-haspopup="dialog" aria-controls="templates-dialog"><span aria-hidden="true">▦</span> Шаблоны</button>
           <button class="action-button" type="button" id="open-year-filters" aria-haspopup="dialog" aria-expanded="false" aria-controls="year-filters"><span aria-hidden="true">⌕</span> Фильтры</button>
           <button class="action-button settings-trigger" type="button" id="open-year-settings" aria-haspopup="dialog" aria-expanded="false" aria-controls="year-settings">Настройки</button>
         </div>
@@ -345,6 +346,67 @@
         <footer class="day-dialog-footer">
           <button class="day-secondary" type="button" id="cancel-day-erase" data-close-dialog>Отмена</button>
           <button class="day-primary" type="button" id="confirm-day-erase" hidden>Удалить</button>
+        </footer>
+      </section>
+    </div>
+    <div class="day-backdrop" id="templates-dialog" role="dialog" aria-modal="true" aria-labelledby="templates-title" hidden>
+      <section class="day-dialog">
+        <header class="day-dialog-header">
+          <h2 id="templates-title">Шаблоны</h2>
+          <button class="settings-close" type="button" data-close-dialog aria-label="Закрыть список шаблонов">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6 18 18M18 6 6 18" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="2.2" /></svg>
+          </button>
+        </header>
+        <p class="day-dialog-help" id="templates-empty">Шаблонов пока нет. Нажмите «Создать шаблон», чтобы добавить первый.</p>
+        <p class="settings-error" id="templates-error" role="alert" hidden></p>
+        <p class="event-card-notice" id="templates-notice" role="status" hidden></p>
+        <div class="day-event-list" id="template-list"></div>
+        <footer class="day-dialog-footer"><button class="day-primary" type="button" id="create-template">Создать шаблон</button></footer>
+      </section>
+    </div>
+    <div class="day-backdrop" id="template-card-dialog" role="dialog" aria-modal="true" aria-labelledby="template-card-title" hidden>
+      <section class="day-dialog">
+        <header class="day-dialog-header">
+          <h2 id="template-card-title">Новый шаблон</h2>
+          <button class="settings-close" type="button" data-close-dialog aria-label="Закрыть редактор шаблона">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6 18 18M18 6 6 18" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="2.2" /></svg>
+          </button>
+        </header>
+        <form class="yearly-form" id="template-form">
+          <label class="yearly-field" for="template-name">Название
+            <textarea id="template-name" name="title" rows="2" required maxlength="60"></textarea>
+          </label>
+          <div class="colour-field">
+            <span id="template-colour-label">Цвет</span>
+            <input id="template-colour" name="colour" type="hidden" value="thought-yellow" />
+            <div class="colour-palette" id="template-colour-palette" role="group" aria-labelledby="template-colour-label"></div>
+            <p class="legacy-colour" id="template-legacy-colour" role="status" hidden></p>
+          </div>
+          <label class="yearly-field" for="template-description">Описание
+            <textarea id="template-description" name="description" maxlength="240" placeholder="Необязательно"></textarea>
+          </label>
+          <p class="settings-error" id="template-save-error" role="alert" hidden></p>
+          <footer class="day-dialog-footer">
+            <button class="day-secondary" type="button" id="delete-template" hidden>Удалить шаблон</button>
+            <button class="day-secondary" type="button" data-close-dialog>Отмена</button>
+            <button class="day-primary" type="submit">Создать шаблон</button>
+          </footer>
+        </form>
+      </section>
+    </div>
+    <div class="day-backdrop" id="template-delete-dialog" role="dialog" aria-modal="true" aria-labelledby="template-delete-title" aria-describedby="template-delete-help" hidden>
+      <section class="day-dialog">
+        <header class="day-dialog-header">
+          <h2 id="template-delete-title">Удалить шаблон?</h2>
+          <button class="settings-close" type="button" data-close-dialog aria-label="Закрыть подтверждение">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6 18 18M18 6 6 18" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="2.2" /></svg>
+          </button>
+        </header>
+        <p class="day-dialog-help" id="template-delete-help"></p>
+        <p class="settings-error" id="template-delete-error" role="alert" hidden></p>
+        <footer class="day-dialog-footer">
+          <button class="day-secondary" type="button" id="cancel-template-delete" data-close-dialog>Отмена</button>
+          <button class="day-primary" type="button" id="confirm-template-delete">Удалить шаблон</button>
         </footer>
       </section>
     </div>

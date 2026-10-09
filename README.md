@@ -21,6 +21,7 @@ The project is a working yearly prototype in active development. The application
 - Add independent day fills and hand-drawn rounded outlines with the same 16-colour palette. Marks persist across reloads and year changes without changing events or thoughts. Click the active tool again, press Escape, or click an empty area of the calendar panel to leave marking mode.
 - Use the eraser to remove a date's fill, outline, events (including scheduled thoughts), or all these layers. Removing events always requires confirmation. Scheduled thoughts are deleted, not returned to the strip; independent history snapshots and templates remain unchanged. If a storage step fails, the dialog reports the completed steps and allows retrying the remainder.
 - Save an event's title, colour, and description as an independent template. Apply a template when creating an event, keep the selected date, and adjust the fields before creation.
+- Manage yearly templates in a library: create them directly, edit their title, colour, and description, and delete them with confirmation. Exact duplicates are not added during creation; existing templates remain independent by ID. Library changes do not change previously created events or history snapshots.
 - Manually add independent event snapshots to a chronological history strip. Editing or deleting the original event does not change its snapshots. Deleting a snapshot requires confirmation.
 - Three yearly scales: Compact, Standard, and Large. Selection gives an immediate preview; cancellation restores the previous scale, and saving retains the choice. Scale changes text size and the widths of the date number and weekday areas; row height stays the same.
 
@@ -41,7 +42,7 @@ localStorage belongs to the browser and profile used to open the app. It provide
 
 Events and history snapshots are retained after a successful save, but browser storage is not a backup.
 
-The current version has no weekly mode, backup export, or backup restoration. Full template library management, including editing and deleting templates, is not implemented.
+The current version has no weekly mode, backup export, or backup restoration.
 
 ## Run locally
 
