@@ -1815,7 +1815,15 @@ function submitEvent(event) {
   const dayEvents = events[sourceDate] || [];
   const index = editingEvent ? dayEvents.indexOf(editingEvent) : -1;
   if (editingEvent && index < 0) return;
-  if (editingEvent) storedEventRecords.set(changes, storedEventRecords.get(editingEvent));
+  if (editingEvent) {
+    storedEventRecords.set(changes, storedEventRecords.get(editingEvent));
+  } else {
+    const template = savedTemplates.find((item) => item.id === templateSelect.value);
+    if (template) {
+      // Reference tuple: title, colour, description, "template", template ID.
+      storedEventRecords.set(changes, [title, changes.colour, changes.description, "template", template.id]);
+    }
+  }
   const moved = editingEvent && targetDate !== sourceDate;
   const nextEvents = { ...events };
   if (moved) {
