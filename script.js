@@ -132,6 +132,12 @@ let templateLibrary = [];
 let templateEditorSnapshot = null;
 let activeTemplateId = null;
 let pendingTemplateId = null;
+const templateUseButton = document.querySelector("#use-template");
+const templatePlacementToast = document.querySelector("#calendar-copy-toast");
+const templatePlacementMessage = document.querySelector("#calendar-copy-message");
+const templatePlacementError = document.querySelector("#calendar-copy-error");
+const templatePlacementConfirm = document.querySelector("#confirm-template-placement");
+let templatePlacement = null;
 const thoughtDialog = document.querySelector("#thought-dialog");
 const thoughtForm = document.querySelector("#thought-form");
 const thoughtText = document.querySelector("#thought-text");
@@ -211,6 +217,7 @@ function loadDayMarks() {
 }
 
 function setCalendarTool(tool) {
+  if (tool) stopTemplatePlacement(false);
   activeCalendarTool = activeCalendarTool === tool ? null : tool;
   calendarToolButtons.forEach((button) => button.setAttribute("aria-pressed", String(button.dataset.calendarTool === activeCalendarTool)));
   calendar.classList.toggle("day-tool-active", Boolean(activeCalendarTool));
@@ -967,6 +974,7 @@ function getThoughtDropTarget(clientX) {
 function startThoughtDrag(event) {
   const card = event.target.closest("[data-thought-id]");
   if (!card || activeDialog) return;
+  stopTemplatePlacement(false);
   draggedThoughtId = card.dataset.thoughtId;
   suppressThoughtClick = true;
   event.dataTransfer.setData("text/plain", draggedThoughtId);
@@ -1211,6 +1219,7 @@ function openTemplateEditor(id = null) {
   document.querySelector("#template-card-title").textContent = template ? "Редактировать шаблон" : "Новый шаблон";
   templateForm.querySelector("[type=submit]").textContent = template ? "Сохранить изменения" : "Создать шаблон";
   templateDeleteButton.hidden = !template;
+  templateUseButton.hidden = !template;
   showEventStorageError(templateSaveError);
   openDialog(templateDialog, null, templateName);
 }
@@ -1243,6 +1252,78 @@ function submitTemplate(event) {
   if (!writeTemplates(next, templateEditorSnapshot, templateSaveError)) return;
   renderTemplateOptions();
   showTemplateLibrary(id, "Шаблон сохранён.", false);
+}
+
+function updateTemplateSelection() {
+  calendar.classList.toggle("copy-mode", Boolean(templatePlacement));
+  calendar.querySelectorAll(".calendar-cell[data-date]").forEach((cell) => {
+    const selected = templatePlacement?.dates.has(cell.dataset.date) || false;
+    cell.classList.toggle("template-selected", selected);
+    cell.querySelectorAll("button[data-date]").forEach((button) => {
+      if (templatePlacement) button.setAttribute("aria-pressed", String(selected));
+      else button.removeAttribute("aria-pressed");
+    });
+  });
+  if (!templatePlacement) return;
+  const count = templatePlacement.dates.size;
+  templatePlacementMessage.textContent = `«${templatePlacement.template.title}»: выберите даты в календаре. Повторное нажатие снимает выбор. Выбрано: ${count}. До подтверждения события не сохраняются.`;
+  templatePlacementConfirm.textContent = `Разместить (${count})`;
+  templatePlacementConfirm.disabled = count === 0;
+}
+
+function stopTemplatePlacement(returnFocus = true) {
+  if (!templatePlacement) return;
+  templatePlacement = null;
+  templatePlacementToast.hidden = true;
+  updateTemplateSelection();
+  if (returnFocus) templatesButton.focus({ preventScroll: true });
+}
+
+function startTemplatePlacement() {
+  const template = templateLibrary.find((item) => item.id === activeTemplateId);
+  if (!template || activeDialog !== templateDialog) return;
+  // Use the saved template, as in the reference; editor drafts are not applied.
+  closeDialog();
+  setCalendarTool(null);
+  templatePlacement = { template: { ...template }, snapshot: JSON.stringify(template), dates: new Set() };
+  showEventStorageError(templatePlacementError);
+  templatePlacementToast.hidden = false;
+  updateTemplateSelection();
+}
+
+function selectTemplateDate(key) {
+  const year = Number(key.slice(0, 4));
+  if (!templatePlacement || !isCalendarDate(key) || year < minimumYear || year > maximumYear) return;
+  const dates = templatePlacement.dates;
+  if (dates.has(key)) dates.delete(key);
+  else dates.add(key);
+  updateTemplateSelection();
+}
+
+function confirmTemplatePlacement() {
+  if (!templatePlacement || !templatePlacement.dates.size || activeDialog) return;
+  const { template, snapshot, dates } = templatePlacement;
+  try {
+    const current = readSavedTemplates().find((item) => item.id === template.id);
+    if (!current || JSON.stringify(current) !== snapshot) {
+      showEventStorageError(templatePlacementError, "Шаблон изменён или удалён в другой вкладке. Ничего не размещено. Выбор дат сохранён; отмените операцию и заново откройте нужный шаблон.");
+      return;
+    }
+  } catch {
+    showEventStorageError(templatePlacementError, "Не удалось проверить шаблон. Ничего не размещено. Выбор дат сохранён; проверьте хранилище и повторите попытку.");
+    return;
+  }
+  const nextEvents = { ...events };
+  for (const key of dates) {
+    const item = { title: template.title, colour: template.type, description: template.description };
+    storedEventRecords.set(item, [item.title, item.colour, item.description, "template", template.id]);
+    nextEvents[key] = [...(events[key] || []), item];
+  }
+  // One write commits the entire batch; keep selection and memory on failure.
+  if (!saveYearEvents(nextEvents, templatePlacementError)) return;
+  for (const key of dates) events[key] = nextEvents[key];
+  for (const key of dates) refreshDate(key);
+  stopTemplatePlacement();
 }
 
 function requestTemplateDeletion() {
@@ -1547,6 +1628,7 @@ function renderCalendar(year) {
     renderMonth(column, year, monthIndex);
   });
   scheduleDayRings();
+  updateTemplateSelection();
 }
 
 function showCalendarYear(year) {
@@ -1598,6 +1680,7 @@ function goToToday() {
 }
 
 function openDialog(dialog, opener, focusTarget) {
+  stopTemplatePlacement(false);
   if (activeDialog) activeDialog.hidden = true;
   else dialogOpener = opener;
   activeDialog = dialog;
@@ -1877,6 +1960,10 @@ function handleDialogKeydown(event) {
 calendar.addEventListener("click", (event) => {
   if (suppressThoughtClick && event.detail !== 0) return;
   const cell = event.target.closest(".calendar-cell[data-date]");
+  if (templatePlacement && cell) {
+    selectTemplateDate(cell.dataset.date);
+    return;
+  }
   if (activeCalendarTool && cell) {
     if (activeCalendarTool === "erase") openDayErase(cell);
     else saveDayMark(cell);
@@ -1899,10 +1986,14 @@ dayEraseActions.addEventListener("click", (event) => {
 });
 dayEraseConfirm.addEventListener("click", executeDayErase);
 document.querySelector(".calendar-panel").addEventListener("click", (event) => {
+  if (templatePlacement && !event.target.closest(".calendar-cell[data-date], [data-calendar-tool], #day-mark-palette button, [data-go-today], [data-year-nav]")) stopTemplatePlacement();
   if (activeCalendarTool && !event.target.closest(".calendar-cell[data-date], [data-calendar-tool], #day-mark-palette button, [data-go-today]")) setCalendarTool(null);
 });
 document.addEventListener("keydown", (event) => {
-  if (event.key === "Escape" && !activeDialog) setCalendarTool(null);
+  if (event.key === "Escape" && !activeDialog) {
+    stopTemplatePlacement();
+    setCalendarTool(null);
+  }
 });
 new ResizeObserver(scheduleDayRings).observe(calendar);
 window.addEventListener("resize", scheduleDayRings);
@@ -2019,6 +2110,9 @@ eventDateInput.addEventListener("input", () => eventDateInput.setCustomValidity(
 placedThoughtText.addEventListener("input", () => placedThoughtText.setCustomValidity(""));
 eventForm.addEventListener("submit", submitEvent);
 templatesButton.addEventListener("click", () => showTemplateLibrary());
+templateUseButton.addEventListener("click", startTemplatePlacement);
+templatePlacementConfirm.addEventListener("click", confirmTemplatePlacement);
+document.querySelector("#cancel-template-placement").addEventListener("click", () => stopTemplatePlacement());
 createTemplateButton.addEventListener("click", () => openTemplateEditor());
 templateList.addEventListener("click", (event) => {
   const row = event.target.closest("[data-template-id]");

@@ -443,7 +443,14 @@ h1 {
 .colour-option[aria-pressed="true"] { border-color: #263142; box-shadow: 0 0 0 2px #fff, 0 0 0 4px #263142; }
 .colour-option:focus-visible { outline: 2px solid #315be9; outline-offset: 3px; }
 .legacy-colour { margin: 0; color: #718095; font-size: 11px; font-weight: 600; line-height: 1.35; }
-#delete-template[hidden] { display: none; }
+#delete-template[hidden], #use-template[hidden] { display: none; }
+.calendar-copy-toast { bottom: 76px; width: max-content; flex-wrap: wrap; }
+.calendar-copy-copy { flex: 1 1 220px; min-width: 0; overflow-wrap: anywhere; }
+.calendar-copy-copy p { margin: 0; }
+#calendar-copy-error { margin-top: 6px; }
+.calendar-copy-toast button:disabled { opacity: 0.55; cursor: default; }
+.year-columns.copy-mode .calendar-cell:not(.blank) button { cursor: copy; }
+.year-columns.copy-mode .template-selected .cell-button { box-shadow: inset 0 0 0 2px #315be9; opacity: 1; filter: none; }
 #template-name { min-height: 60px; }
 #template-list .day-event-name { font-weight: 600; white-space: pre-wrap; overflow-wrap: anywhere; }
 #template-delete-help { white-space: pre-wrap; overflow-wrap: anywhere; }

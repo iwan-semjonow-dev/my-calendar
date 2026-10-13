@@ -137,6 +137,14 @@
         <span id="thought-undo-message"></span>
         <button type="button" id="undo-thought-placement">Отменить</button>
       </div>
+      <div class="thought-undo-toast calendar-copy-toast" id="calendar-copy-toast" hidden>
+        <div class="calendar-copy-copy">
+          <p id="calendar-copy-message" role="status"></p>
+          <p id="calendar-copy-error" role="alert" hidden></p>
+        </div>
+        <button type="button" id="confirm-template-placement" disabled>Разместить</button>
+        <button type="button" id="cancel-template-placement">Отмена</button>
+      </div>
     </div>
     <div class="day-backdrop settings-backdrop" id="year-settings" role="dialog" aria-modal="true" aria-labelledby="year-settings-title" hidden>
       <section class="day-dialog settings-dialog">
@@ -387,6 +395,7 @@
           </label>
           <p class="settings-error" id="template-save-error" role="alert" hidden></p>
           <footer class="day-dialog-footer">
+            <button class="day-secondary" type="button" id="use-template" hidden>Использовать шаблон</button>
             <button class="day-secondary" type="button" id="delete-template" hidden>Удалить шаблон</button>
             <button class="day-secondary" type="button" data-close-dialog>Отмена</button>
             <button class="day-primary" type="submit">Создать шаблон</button>
