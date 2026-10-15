@@ -133,11 +133,11 @@ let templateEditorSnapshot = null;
 let activeTemplateId = null;
 let pendingTemplateId = null;
 const templateUseButton = document.querySelector("#use-template");
-const templatePlacementToast = document.querySelector("#calendar-copy-toast");
-const templatePlacementMessage = document.querySelector("#calendar-copy-message");
-const templatePlacementError = document.querySelector("#calendar-copy-error");
-const templatePlacementConfirm = document.querySelector("#confirm-template-placement");
-let templatePlacement = null;
+const calendarPlacementToast = document.querySelector("#calendar-copy-toast");
+const calendarPlacementMessage = document.querySelector("#calendar-copy-message");
+const calendarPlacementError = document.querySelector("#calendar-copy-error");
+const calendarPlacementConfirm = document.querySelector("#confirm-template-placement");
+let calendarPlacement = null;
 const thoughtDialog = document.querySelector("#thought-dialog");
 const thoughtForm = document.querySelector("#thought-form");
 const thoughtText = document.querySelector("#thought-text");
@@ -217,7 +217,7 @@ function loadDayMarks() {
 }
 
 function setCalendarTool(tool) {
-  if (tool) stopTemplatePlacement(false);
+  if (tool) stopCalendarPlacement(false);
   activeCalendarTool = activeCalendarTool === tool ? null : tool;
   calendarToolButtons.forEach((button) => button.setAttribute("aria-pressed", String(button.dataset.calendarTool === activeCalendarTool)));
   calendar.classList.toggle("day-tool-active", Boolean(activeCalendarTool));
@@ -974,7 +974,7 @@ function getThoughtDropTarget(clientX) {
 function startThoughtDrag(event) {
   const card = event.target.closest("[data-thought-id]");
   if (!card || activeDialog) return;
-  stopTemplatePlacement(false);
+  stopCalendarPlacement(false);
   draggedThoughtId = card.dataset.thoughtId;
   suppressThoughtClick = true;
   event.dataTransfer.setData("text/plain", draggedThoughtId);
@@ -1254,76 +1254,119 @@ function submitTemplate(event) {
   showTemplateLibrary(id, "Шаблон сохранён.", false);
 }
 
-function updateTemplateSelection() {
-  calendar.classList.toggle("copy-mode", Boolean(templatePlacement));
+function updatePlacementSelection() {
+  calendar.classList.toggle("copy-mode", Boolean(calendarPlacement));
   calendar.querySelectorAll(".calendar-cell[data-date]").forEach((cell) => {
-    const selected = templatePlacement?.dates.has(cell.dataset.date) || false;
+    const selected = calendarPlacement?.dates.has(cell.dataset.date) || false;
     cell.classList.toggle("template-selected", selected);
     cell.querySelectorAll("button[data-date]").forEach((button) => {
-      if (templatePlacement) button.setAttribute("aria-pressed", String(selected));
+      if (calendarPlacement) button.setAttribute("aria-pressed", String(selected));
       else button.removeAttribute("aria-pressed");
     });
   });
-  if (!templatePlacement) return;
-  const count = templatePlacement.dates.size;
-  templatePlacementMessage.textContent = `«${templatePlacement.template.title}»: выберите даты в календаре. Повторное нажатие снимает выбор. Выбрано: ${count}. До подтверждения события не сохраняются.`;
-  templatePlacementConfirm.textContent = `Разместить (${count})`;
-  templatePlacementConfirm.disabled = count === 0;
+  if (!calendarPlacement) return;
+  const count = calendarPlacement.dates.size;
+  calendarPlacementMessage.textContent = `«${calendarPlacement.record[0]}»: выберите даты в календаре. Повторное нажатие снимает выбор. Выбрано: ${count}. До подтверждения события не сохраняются.`;
+  calendarPlacementConfirm.textContent = `Разместить (${count})`;
+  calendarPlacementConfirm.disabled = count === 0;
 }
 
-function stopTemplatePlacement(returnFocus = true) {
-  if (!templatePlacement) return;
-  templatePlacement = null;
-  templatePlacementToast.hidden = true;
-  updateTemplateSelection();
-  if (returnFocus) templatesButton.focus({ preventScroll: true });
+function stopCalendarPlacement(returnFocus = true) {
+  if (!calendarPlacement) return;
+  const originDate = calendarPlacement.originDate;
+  calendarPlacement = null;
+  calendarPlacementToast.hidden = true;
+  updatePlacementSelection();
+  if (returnFocus) {
+    const origin = originDate && calendar.querySelector(`[data-action="open-day"][data-date="${originDate}"]`);
+    const bounds = origin?.getBoundingClientRect();
+    const viewport = calendarScroll.getBoundingClientRect();
+    const visible = bounds && bounds.left >= Math.max(0, viewport.left)
+      && bounds.right <= Math.min(innerWidth, viewport.right) && bounds.top >= 0 && bounds.bottom <= innerHeight;
+    const target = originDate ? (visible ? origin : calendarScroll) : templatesButton;
+    target.focus({ preventScroll: true });
+  }
+}
+
+function startCalendarPlacement(record, source = {}) {
+  closeDialog();
+  setCalendarTool(null);
+  calendarPlacement = { record, ...source, dates: new Set() };
+  showEventStorageError(calendarPlacementError);
+  calendarPlacementToast.hidden = false;
+  updatePlacementSelection();
 }
 
 function startTemplatePlacement() {
   const template = templateLibrary.find((item) => item.id === activeTemplateId);
   if (!template || activeDialog !== templateDialog) return;
   // Use the saved template, as in the reference; editor drafts are not applied.
-  closeDialog();
-  setCalendarTool(null);
-  templatePlacement = { template: { ...template }, snapshot: JSON.stringify(template), dates: new Set() };
-  showEventStorageError(templatePlacementError);
-  templatePlacementToast.hidden = false;
-  updateTemplateSelection();
+  startCalendarPlacement([template.title, template.type, template.description, "template", template.id], {
+    templateId: template.id, snapshot: JSON.stringify(template),
+  });
 }
 
-function selectTemplateDate(key) {
+function copyEventRecord(event) {
+  const record = structuredClone(storedEventRecords.get(event) || [event.title, event.colour, event.description]);
+  record[0] = event.title;
+  record[1] = event.colour;
+  if (record.length > 2 || event.description !== "") record[2] = event.description;
+  // Extra tuple fields have no reference schema. Retain their data, but not
+  // top-level record identities or thought ownership in metadata objects.
+  for (const metadata of record.slice(3)) {
+    if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) continue;
+    for (const key of ["id", "eventId", "placementId", "thoughtId", "sourceThought"]) delete metadata[key];
+  }
+  return record;
+}
+
+function startEventRepeat() {
+  if (!selectedEvent || pendingDeletion || activeDialog !== cardDialog) return;
+  const { key, event } = selectedEvent;
+  if (!events[key]?.includes(event)) return;
+  const placement = placedEvents.has(event);
+  // A repeated thought becomes an ordinary event, never another placement.
+  const record = placement ? [event.title, event.colour, event.description] : copyEventRecord(event);
+  startCalendarPlacement(record, { originDate: key, placementSnapshot: placement ? placementStorageSnapshot : undefined });
+}
+
+function selectPlacementDate(key) {
   const year = Number(key.slice(0, 4));
-  if (!templatePlacement || !isCalendarDate(key) || year < minimumYear || year > maximumYear) return;
-  const dates = templatePlacement.dates;
+  if (!calendarPlacement || !isCalendarDate(key) || year < minimumYear || year > maximumYear) return;
+  const dates = calendarPlacement.dates;
   if (dates.has(key)) dates.delete(key);
   else dates.add(key);
-  updateTemplateSelection();
+  updatePlacementSelection();
 }
 
-function confirmTemplatePlacement() {
-  if (!templatePlacement || !templatePlacement.dates.size || activeDialog) return;
-  const { template, snapshot, dates } = templatePlacement;
+function confirmCalendarPlacement() {
+  if (!calendarPlacement || !calendarPlacement.dates.size || activeDialog) return;
+  const { record, templateId, snapshot, dates, placementSnapshot } = calendarPlacement;
   try {
-    const current = readSavedTemplates().find((item) => item.id === template.id);
-    if (!current || JSON.stringify(current) !== snapshot) {
-      showEventStorageError(templatePlacementError, "Шаблон изменён или удалён в другой вкладке. Ничего не размещено. Выбор дат сохранён; отмените операцию и заново откройте нужный шаблон.");
+    const current = templateId ? readSavedTemplates().find((item) => item.id === templateId) : null;
+    if (templateId && (!current || JSON.stringify(current) !== snapshot)) {
+      showEventStorageError(calendarPlacementError, "Шаблон изменён или удалён в другой вкладке. Ничего не размещено. Выбор дат сохранён; отмените операцию и заново откройте нужный шаблон.");
+      return;
+    }
+    if (placementSnapshot !== undefined && localStorage.getItem(placementStorageKey) !== placementSnapshot) {
+      showEventStorageError(calendarPlacementError, "Размещённые мысли изменились в другой вкладке. Ничего не размещено. Выбор дат сохранён; отмените операцию и обновите страницу перед повторением.");
       return;
     }
   } catch {
-    showEventStorageError(templatePlacementError, "Не удалось проверить шаблон. Ничего не размещено. Выбор дат сохранён; проверьте хранилище и повторите попытку.");
+    showEventStorageError(calendarPlacementError, "Не удалось проверить источник. Ничего не размещено. Выбор дат сохранён; проверьте хранилище и повторите попытку.");
     return;
   }
   const nextEvents = { ...events };
   for (const key of dates) {
-    const item = { title: template.title, colour: template.type, description: template.description };
-    storedEventRecords.set(item, [item.title, item.colour, item.description, "template", template.id]);
+    const item = { title: record[0], colour: record[1], description: record[2] ?? "" };
+    storedEventRecords.set(item, structuredClone(record));
     nextEvents[key] = [...(events[key] || []), item];
   }
   // One write commits the entire batch; keep selection and memory on failure.
-  if (!saveYearEvents(nextEvents, templatePlacementError)) return;
+  if (!saveYearEvents(nextEvents, calendarPlacementError)) return;
   for (const key of dates) events[key] = nextEvents[key];
   for (const key of dates) refreshDate(key);
-  stopTemplatePlacement();
+  stopCalendarPlacement();
 }
 
 function requestTemplateDeletion() {
@@ -1628,7 +1671,7 @@ function renderCalendar(year) {
     renderMonth(column, year, monthIndex);
   });
   scheduleDayRings();
-  updateTemplateSelection();
+  updatePlacementSelection();
 }
 
 function showCalendarYear(year) {
@@ -1680,7 +1723,7 @@ function goToToday() {
 }
 
 function openDialog(dialog, opener, focusTarget) {
-  stopTemplatePlacement(false);
+  stopCalendarPlacement(false);
   if (activeDialog) activeDialog.hidden = true;
   else dialogOpener = opener;
   activeDialog = dialog;
@@ -1960,8 +2003,8 @@ function handleDialogKeydown(event) {
 calendar.addEventListener("click", (event) => {
   if (suppressThoughtClick && event.detail !== 0) return;
   const cell = event.target.closest(".calendar-cell[data-date]");
-  if (templatePlacement && cell) {
-    selectTemplateDate(cell.dataset.date);
+  if (calendarPlacement && cell) {
+    selectPlacementDate(cell.dataset.date);
     return;
   }
   if (activeCalendarTool && cell) {
@@ -1986,12 +2029,12 @@ dayEraseActions.addEventListener("click", (event) => {
 });
 dayEraseConfirm.addEventListener("click", executeDayErase);
 document.querySelector(".calendar-panel").addEventListener("click", (event) => {
-  if (templatePlacement && !event.target.closest(".calendar-cell[data-date], [data-calendar-tool], #day-mark-palette button, [data-go-today], [data-year-nav]")) stopTemplatePlacement();
+  if (calendarPlacement && !event.target.closest(".calendar-cell[data-date], [data-calendar-tool], #day-mark-palette button, [data-go-today], [data-year-nav]")) stopCalendarPlacement();
   if (activeCalendarTool && !event.target.closest(".calendar-cell[data-date], [data-calendar-tool], #day-mark-palette button, [data-go-today]")) setCalendarTool(null);
 });
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && !activeDialog) {
-    stopTemplatePlacement();
+    stopCalendarPlacement();
     setCalendarTool(null);
   }
 });
@@ -2111,8 +2154,9 @@ placedThoughtText.addEventListener("input", () => placedThoughtText.setCustomVal
 eventForm.addEventListener("submit", submitEvent);
 templatesButton.addEventListener("click", () => showTemplateLibrary());
 templateUseButton.addEventListener("click", startTemplatePlacement);
-templatePlacementConfirm.addEventListener("click", confirmTemplatePlacement);
-document.querySelector("#cancel-template-placement").addEventListener("click", () => stopTemplatePlacement());
+calendarPlacementConfirm.addEventListener("click", confirmCalendarPlacement);
+document.querySelector("#repeat-event").addEventListener("click", startEventRepeat);
+document.querySelector("#cancel-template-placement").addEventListener("click", () => stopCalendarPlacement());
 createTemplateButton.addEventListener("click", () => openTemplateEditor());
 templateList.addEventListener("click", (event) => {
   const row = event.target.closest("[data-template-id]");
