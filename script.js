@@ -132,6 +132,10 @@ let templateLibrary = [];
 let templateEditorSnapshot = null;
 let activeTemplateId = null;
 let pendingTemplateId = null;
+const templateFutureDialog = document.querySelector("#template-future-dialog");
+const templateFutureHelp = document.querySelector("#template-future-help");
+const templateFutureError = document.querySelector("#template-future-error");
+let pendingTemplateUpdate = null;
 const templateUseButton = document.querySelector("#use-template");
 const calendarPlacementToast = document.querySelector("#calendar-copy-toast");
 const calendarPlacementMessage = document.querySelector("#calendar-copy-message");
@@ -1251,7 +1255,97 @@ function submitTemplate(event) {
     : [...templateLibrary, { id, ...changes }];
   if (!writeTemplates(next, templateEditorSnapshot, templateSaveError)) return;
   renderTemplateOptions();
+  if (existing) {
+    offerTemplateUpdate(next.find((item) => item.id === id));
+    return;
+  }
   showTemplateLibrary(id, "Шаблон сохранён.", false);
+}
+
+function localTodayKey() {
+  const now = new Date();
+  return getDateKey(now.getFullYear(), now.getMonth(), now.getDate());
+}
+
+function futureTemplateRecords(id, todayKey) {
+  return Object.entries(events).flatMap(([date, items]) => date > todayKey
+    ? items.filter((item) => {
+      const record = storedEventRecords.get(item);
+      return !placedEvents.has(item) && record?.[3] === "template" && record[4] === id;
+    }).map((item) => ({ date, item })) : []);
+}
+
+function describeTemplateUpdate(count) {
+  const { template, todayKey } = pendingTemplateUpdate;
+  templateFutureHelp.textContent = `Шаблон «${template.title}» уже сохранён. Связанных событий после ${formatDate(todayKey)} во всех годах: ${count}. Сегодняшний день не входит. Их название, цвет и описание будут заменены значениями шаблона, включая изменения, внесённые вручную. Даты и порядок сохранятся. Прошедшие и сегодняшние события, другие шаблоны, мысли и история не изменятся. «Только шаблон» оставит события без изменений.`;
+}
+
+function finishTemplateUpdate(message) {
+  const id = pendingTemplateUpdate.template.id;
+  pendingTemplateUpdate = null;
+  showTemplateLibrary(id, message);
+}
+
+function offerTemplateUpdate(template) {
+  if (eventStorageBlocked) {
+    showTemplateLibrary(template.id, "Шаблон сохранён. События недоступны: обновление не выполнено. Восстановите хранилище и перезагрузите страницу.", false);
+    return;
+  }
+  const todayKey = localTodayKey();
+  const count = futureTemplateRecords(template.id, todayKey).length;
+  if (!count) {
+    showTemplateLibrary(template.id, "Шаблон сохранён. Связанных будущих событий в загруженном календаре нет; события не записывались.", false);
+    return;
+  }
+  pendingTemplateUpdate = { template: structuredClone(template), snapshot: JSON.stringify(template), todayKey };
+  describeTemplateUpdate(count);
+  showEventStorageError(templateFutureError);
+  openDialog(templateFutureDialog, null, document.querySelector("#decline-template-future"));
+}
+
+function applyTemplateUpdate() {
+  if (!pendingTemplateUpdate || activeDialog !== templateFutureDialog) return;
+  const { template, snapshot } = pendingTemplateUpdate;
+  try {
+    const current = readSavedTemplates().find((item) => item.id === template.id);
+    if (!current || JSON.stringify(current) !== snapshot) {
+      showEventStorageError(templateFutureError, "Шаблон был сохранён, но затем изменён или удалён в другой вкладке. События не обновлены. Закройте окно и заново откройте актуальный шаблон.");
+      return;
+    }
+    if (localStorage.getItem(eventStorageKey) !== eventStorageSnapshot) {
+      showEventStorageError(templateFutureError, "Шаблон сохранён. События изменены в другой вкладке; обновление остановлено. Чужие изменения не перезаписаны. Закройте окно и перезагрузите страницу.");
+      return;
+    }
+  } catch {
+    showEventStorageError(templateFutureError, "Шаблон был сохранён. Проверить хранилища не удалось; события не обновлены. Проверьте доступ и повторите попытку.");
+    return;
+  }
+  const todayKey = localTodayKey();
+  const targets = futureTemplateRecords(template.id, todayKey);
+  if (!targets.length) {
+    finishTemplateUpdate("Шаблон сохранён. Подходящих будущих событий больше нет; события не записывались.");
+    return;
+  }
+  if (todayKey !== pendingTemplateUpdate.todayKey) {
+    pendingTemplateUpdate.todayKey = todayKey;
+    describeTemplateUpdate(targets.length);
+    showEventStorageError(templateFutureError, "Наступила новая дата. Граница будущих событий пересчитана; подтвердите обновление ещё раз.");
+    return;
+  }
+  const selected = new Set(targets.map(({ item }) => item));
+  const nextEvents = Object.fromEntries(Object.entries(events).map(([date, items]) => [date, items.map((item) => {
+    if (!selected.has(item)) return item;
+    const updated = { ...item, title: template.title, colour: template.type, description: template.description };
+    storedEventRecords.set(updated, structuredClone(storedEventRecords.get(item)));
+    return updated;
+  })]));
+  if (!saveYearEvents(nextEvents, templateFutureError)) {
+    templateFutureError.textContent = `Шаблон уже сохранён; события не обновлены. ${templateFutureError.textContent}`;
+    return;
+  }
+  Object.assign(events, nextEvents);
+  for (const date of new Set(targets.map((target) => target.date))) refreshDate(date);
+  finishTemplateUpdate(`Шаблон сохранён. Обновлено будущих событий: ${targets.length}.`);
 }
 
 function updatePlacementSelection() {
@@ -1879,7 +1973,8 @@ function confirmDeletion() {
 }
 
 function dismissDialog() {
-  if (activeDialog === templateDialog) showTemplateLibrary(activeTemplateId);
+  if (activeDialog === templateFutureDialog) finishTemplateUpdate("Шаблон сохранён. События оставлены без изменений.");
+  else if (activeDialog === templateDialog) showTemplateLibrary(activeTemplateId);
   else if (activeDialog === templateDeleteDialog) openDialog(templateDialog, null, templateDeleteButton);
   else if (activeDialog === thoughtDeleteDialog) cancelThoughtDeletion();
   else if (activeDialog === creationDialog && editingEvent) cancelEditing();
@@ -2141,7 +2236,7 @@ scaleButtons.forEach((button) => button.addEventListener("click", () => {
 }));
 document.querySelector("#save-year-settings").addEventListener("click", saveYearSettings);
 
-for (const dialog of [creationDialog, cardDialog, listDialog, filtersDialog, thoughtDialog, thoughtDeleteDialog, historyDeleteDialog, settingsDialog, dayEraseDialog, templatesDialog, templateDialog, templateDeleteDialog]) {
+for (const dialog of [creationDialog, cardDialog, listDialog, filtersDialog, thoughtDialog, thoughtDeleteDialog, historyDeleteDialog, settingsDialog, dayEraseDialog, templatesDialog, templateDialog, templateDeleteDialog, templateFutureDialog]) {
   dialog.addEventListener("click", (event) => {
     if (event.target === dialog || event.target.closest("[data-close-dialog]")) dismissDialog();
     else if (event.target.closest("[data-back-to-list]")) openDayEvents(listDate);
@@ -2163,6 +2258,7 @@ templateList.addEventListener("click", (event) => {
   if (row) openTemplateEditor(row.dataset.templateId);
 });
 templateForm.addEventListener("submit", submitTemplate);
+document.querySelector("#apply-template-future").addEventListener("click", applyTemplateUpdate);
 templateName.addEventListener("input", () => templateName.setCustomValidity(""));
 templateDeleteButton.addEventListener("click", requestTemplateDeletion);
 document.querySelector("#confirm-template-delete").addEventListener("click", confirmTemplateDeletion);
