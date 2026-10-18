@@ -135,6 +135,8 @@ let pendingTemplateId = null;
 const templateFutureDialog = document.querySelector("#template-future-dialog");
 const templateFutureHelp = document.querySelector("#template-future-help");
 const templateFutureError = document.querySelector("#template-future-error");
+const templateFutureList = document.querySelector("#template-future-list");
+const templateFutureApply = document.querySelector("#apply-template-future");
 let pendingTemplateUpdate = null;
 const templateUseButton = document.querySelector("#use-template");
 const calendarPlacementToast = document.querySelector("#calendar-copy-toast");
@@ -1277,7 +1279,51 @@ function futureTemplateRecords(id, todayKey) {
 
 function describeTemplateUpdate(count) {
   const { template, todayKey } = pendingTemplateUpdate;
-  templateFutureHelp.textContent = `Шаблон «${template.title}» уже сохранён. Связанных событий после ${formatDate(todayKey)} во всех годах: ${count}. Сегодняшний день не входит. Их название, цвет и описание будут заменены значениями шаблона, включая изменения, внесённые вручную. Даты и порядок сохранятся. Прошедшие и сегодняшние события, другие шаблоны, мысли и история не изменятся. «Только шаблон» оставит события без изменений.`;
+  templateFutureHelp.textContent = `Шаблон «${template.title}» уже сохранён. Связанных событий после ${formatDate(todayKey)} во всех годах: ${count}. Сегодняшний день не входит. Выберите записи для обновления. Только у выбранных событий название, цвет и описание будут заменены значениями сохранённого шаблона, включая изменения, внесённые вручную. Даты, порядок и невыбранные записи сохранятся. «Только шаблон» оставит все события без изменений.`;
+}
+
+function updateTemplateSelection() {
+  const { selected, items } = pendingTemplateUpdate;
+  document.querySelector("#template-future-count").textContent = `Выбрано: ${selected.size} из ${items.length}`;
+  templateFutureApply.disabled = selected.size === 0;
+}
+
+function renderTemplateCandidates() {
+  const { items, selected } = pendingTemplateUpdate;
+  templateFutureList.replaceChildren();
+  for (const { date, item } of items) {
+    const row = document.createElement("label");
+    row.className = "day-event-row future-event-row";
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.checked = selected.has(item);
+    checkbox.addEventListener("change", () => {
+      if (checkbox.checked) selected.add(item);
+      else selected.delete(item);
+      updateTemplateSelection();
+    });
+    const copy = document.createElement("span");
+    copy.className = "day-event-copy";
+    const dateLabel = document.createElement("span");
+    dateLabel.className = "day-event-name";
+    dateLabel.textContent = formatDate(date);
+    const content = document.createElement("span");
+    content.className = "day-event-description";
+    content.textContent = `${item.title}\nЦвет: ${getEventColourName(item.colour)}\n${item.description || "Без описания"}`;
+    copy.append(dateLabel, content);
+    row.append(checkbox, copy);
+    templateFutureList.append(row);
+  }
+  updateTemplateSelection();
+}
+
+function selectTemplateCandidates(all) {
+  if (!pendingTemplateUpdate) return;
+  const { items, selected } = pendingTemplateUpdate;
+  selected.clear();
+  if (all) items.forEach(({ item }) => selected.add(item));
+  templateFutureList.querySelectorAll("input").forEach((input) => { input.checked = all; });
+  updateTemplateSelection();
 }
 
 function finishTemplateUpdate(message) {
@@ -1292,13 +1338,18 @@ function offerTemplateUpdate(template) {
     return;
   }
   const todayKey = localTodayKey();
-  const count = futureTemplateRecords(template.id, todayKey).length;
+  const items = futureTemplateRecords(template.id, todayKey);
+  const count = items.length;
   if (!count) {
     showTemplateLibrary(template.id, "Шаблон сохранён. Связанных будущих событий в загруженном календаре нет; события не записывались.", false);
     return;
   }
-  pendingTemplateUpdate = { template: structuredClone(template), snapshot: JSON.stringify(template), todayKey };
+  pendingTemplateUpdate = {
+    template: structuredClone(template), snapshot: JSON.stringify(template), todayKey,
+    eventSnapshot: eventStorageSnapshot, items, selected: new Set(items.map(({ item }) => item)),
+  };
   describeTemplateUpdate(count);
+  renderTemplateCandidates();
   showEventStorageError(templateFutureError);
   openDialog(templateFutureDialog, null, document.querySelector("#decline-template-future"));
 }
@@ -1312,7 +1363,8 @@ function applyTemplateUpdate() {
       showEventStorageError(templateFutureError, "Шаблон был сохранён, но затем изменён или удалён в другой вкладке. События не обновлены. Закройте окно и заново откройте актуальный шаблон.");
       return;
     }
-    if (localStorage.getItem(eventStorageKey) !== eventStorageSnapshot) {
+    if (localStorage.getItem(eventStorageKey) !== pendingTemplateUpdate.eventSnapshot
+      || eventStorageSnapshot !== pendingTemplateUpdate.eventSnapshot) {
       showEventStorageError(templateFutureError, "Шаблон сохранён. События изменены в другой вкладке; обновление остановлено. Чужие изменения не перезаписаны. Закройте окно и перезагрузите страницу.");
       return;
     }
@@ -1321,18 +1373,22 @@ function applyTemplateUpdate() {
     return;
   }
   const todayKey = localTodayKey();
-  const targets = futureTemplateRecords(template.id, todayKey);
-  if (!targets.length) {
-    finishTemplateUpdate("Шаблон сохранён. Подходящих будущих событий больше нет; события не записывались.");
-    return;
-  }
   if (todayKey !== pendingTemplateUpdate.todayKey) {
     pendingTemplateUpdate.todayKey = todayKey;
-    describeTemplateUpdate(targets.length);
+    pendingTemplateUpdate.items = futureTemplateRecords(template.id, todayKey);
+    const eligible = new Set(pendingTemplateUpdate.items.map(({ item }) => item));
+    for (const item of pendingTemplateUpdate.selected) {
+      if (!eligible.has(item)) pendingTemplateUpdate.selected.delete(item);
+    }
+    describeTemplateUpdate(pendingTemplateUpdate.items.length);
+    renderTemplateCandidates();
+    if (templateFutureApply.disabled) document.querySelector("#decline-template-future").focus();
     showEventStorageError(templateFutureError, "Наступила новая дата. Граница будущих событий пересчитана; подтвердите обновление ещё раз.");
     return;
   }
-  const selected = new Set(targets.map(({ item }) => item));
+  const { selected } = pendingTemplateUpdate;
+  const targets = pendingTemplateUpdate.items.filter(({ item }) => selected.has(item));
+  if (!targets.length) return;
   const nextEvents = Object.fromEntries(Object.entries(events).map(([date, items]) => [date, items.map((item) => {
     if (!selected.has(item)) return item;
     const updated = { ...item, title: template.title, colour: template.type, description: template.description };
@@ -2258,7 +2314,9 @@ templateList.addEventListener("click", (event) => {
   if (row) openTemplateEditor(row.dataset.templateId);
 });
 templateForm.addEventListener("submit", submitTemplate);
-document.querySelector("#apply-template-future").addEventListener("click", applyTemplateUpdate);
+templateFutureApply.addEventListener("click", applyTemplateUpdate);
+document.querySelector("#select-all-template-future").addEventListener("click", () => selectTemplateCandidates(true));
+document.querySelector("#clear-template-future").addEventListener("click", () => selectTemplateCandidates(false));
 templateName.addEventListener("input", () => templateName.setCustomValidity(""));
 templateDeleteButton.addEventListener("click", requestTemplateDeletion);
 document.querySelector("#confirm-template-delete").addEventListener("click", confirmTemplateDeletion);

@@ -428,11 +428,19 @@
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6 18 18M18 6 6 18" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="2.2" /></svg>
           </button>
         </header>
-        <p class="day-dialog-help" id="template-future-help"></p>
+        <div class="template-future-body">
+          <p class="day-dialog-help" id="template-future-help"></p>
+          <div class="day-event-list" id="template-future-list" role="group" aria-label="Будущие события для обновления"></div>
+        </div>
+        <div class="template-future-selection">
+          <button class="day-secondary" type="button" id="select-all-template-future">Выбрать все</button>
+          <button class="day-secondary" type="button" id="clear-template-future">Снять выбор</button>
+          <span id="template-future-count" role="status"></span>
+        </div>
         <p class="settings-error" id="template-future-error" role="alert" hidden></p>
         <footer class="day-dialog-footer">
           <button class="day-secondary" type="button" id="decline-template-future" data-close-dialog>Только шаблон</button>
-          <button class="day-primary" type="button" id="apply-template-future">Обновить события</button>
+          <button class="day-primary" type="button" id="apply-template-future">Применить к выбранным</button>
         </footer>
       </section>
     </div>
