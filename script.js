@@ -171,8 +171,10 @@ let thoughtStorageBlocked = false;
 let pendingThought = null;
 let activeDialog = null;
 let dialogOpener = null;
+let dialogOpenerDate = null;
 let creationDate = null;
 let listDate = null;
+let dayListScrollTop = 0;
 let selectedEvent = null;
 let editingEvent = null;
 let pendingDeletion = null;
@@ -1874,12 +1876,24 @@ function goToToday() {
 
 function openDialog(dialog, opener, focusTarget) {
   stopCalendarPlacement(false);
+  if (activeDialog === listDialog) dayListScrollTop = listDialog.querySelector(".day-dialog").scrollTop;
   if (activeDialog) activeDialog.hidden = true;
-  else dialogOpener = opener;
+  else {
+    dialogOpener = opener;
+    dialogOpenerDate = opener?.dataset.date || null;
+  }
   activeDialog = dialog;
   app.inert = true;
   dialog.hidden = false;
   focusTarget.focus({ preventScroll: true });
+}
+
+function restoreDialogFocus() {
+  const available = (element) => element?.isConnected && !element.disabled && element.getClientRects().length > 0;
+  const dateButton = dialogOpenerDate
+    ? calendar.querySelector(`[data-action="open-day"][data-date="${dialogOpenerDate}"]`) : null;
+  const target = [dialogOpener, dateButton, ...app.querySelectorAll("button")].find(available);
+  target?.focus({ preventScroll: true });
 }
 
 function closeDialog() {
@@ -1891,11 +1905,13 @@ function closeDialog() {
   if (activeDialog === filtersDialog) filtersButton.setAttribute("aria-expanded", "false");
   activeDialog.hidden = true;
   app.inert = false;
-  dialogOpener.focus({ preventScroll: true });
+  restoreDialogFocus();
   activeDialog = null;
   dialogOpener = null;
+  dialogOpenerDate = null;
   creationDate = null;
   listDate = null;
+  dayListScrollTop = 0;
   selectedEvent = null;
   editingEvent = null;
   pendingDeletion = null;
@@ -2024,7 +2040,7 @@ function confirmDeletion() {
   events[key].splice(index, 1);
   if (events[key].length === 0) delete events[key];
   refreshDate(key);
-  if (events[key]?.length) openDayEvents(key);
+  if (events[key]?.length) openDayEvents(key, null, remaining[index] || remaining[remaining.length - 1]);
   else closeDialog();
 }
 
@@ -2063,12 +2079,33 @@ function createListEvent(event, index) {
   return button;
 }
 
-function openDayEvents(key, opener = null) {
+function openDayEvents(key, opener = null, focusEvent = null, focusCreation = false) {
+  if (listDate !== key) dayListScrollTop = 0;
   selectedEvent = null;
   listDate = key;
   document.querySelector("#day-events-date").textContent = formatDate(key);
   dayEventList.replaceChildren(...(events[key] || []).map(createListEvent));
-  openDialog(listDialog, opener, dayEventList.querySelector("button") || createFromList);
+  const index = (events[key] || []).indexOf(focusEvent);
+  const target = focusCreation ? createFromList
+    : dayEventList.querySelector(`[data-event-index="${index}"]`) || dayEventList.querySelector("button") || createFromList;
+  openDialog(listDialog, opener, target);
+  const panel = listDialog.querySelector(".day-dialog");
+  panel.scrollTop = dayListScrollTop;
+  const bounds = panel.getBoundingClientRect();
+  const focusBounds = target.getBoundingClientRect();
+  if (focusBounds.top < bounds.top) panel.scrollTop -= bounds.top - focusBounds.top;
+  else if (focusBounds.bottom > bounds.bottom) panel.scrollTop += focusBounds.bottom - bounds.bottom;
+}
+
+function returnToDayList() {
+  const fromCreation = activeDialog === creationDialog && !editingEvent;
+  if (!listDate || (!fromCreation && activeDialog !== cardDialog)) return;
+  const focusEvent = fromCreation ? null : selectedEvent?.event;
+  if (fromCreation) {
+    eventForm.reset();
+    creationDate = null;
+  }
+  openDayEvents(listDate, null, focusEvent, fromCreation);
 }
 
 function submitEvent(event) {
@@ -2295,7 +2332,7 @@ document.querySelector("#save-year-settings").addEventListener("click", saveYear
 for (const dialog of [creationDialog, cardDialog, listDialog, filtersDialog, thoughtDialog, thoughtDeleteDialog, historyDeleteDialog, settingsDialog, dayEraseDialog, templatesDialog, templateDialog, templateDeleteDialog, templateFutureDialog]) {
   dialog.addEventListener("click", (event) => {
     if (event.target === dialog || event.target.closest("[data-close-dialog]")) dismissDialog();
-    else if (event.target.closest("[data-back-to-list]")) openDayEvents(listDate);
+    else if (event.target.closest("[data-back-to-list]")) returnToDayList();
   });
 }
 document.addEventListener("keydown", handleDialogKeydown);
