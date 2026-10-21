@@ -38,7 +38,7 @@ body {
 
 .app {
   width: 100%;
-  padding: 0 clamp(16px, 3vw, 32px) 32px;
+  padding: 0 8px 32px;
 }
 
 .app-header {
