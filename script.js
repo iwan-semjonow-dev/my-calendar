@@ -171,6 +171,11 @@ let thoughtStorageBlocked = false;
 let pendingThought = null;
 let activeDialog = null;
 let dialogOpener = null;
+const eventPreview = document.querySelector("#event-preview");
+const eventPreviewContent = document.querySelector("#event-preview-content");
+let previewSource = null;
+let dismissedPreviewSource = null;
+let previewCloseTimer = null;
 let dialogOpenerDate = null;
 let creationDate = null;
 let listDate = null;
@@ -225,6 +230,7 @@ function loadDayMarks() {
 }
 
 function setCalendarTool(tool) {
+  hideEventPreview();
   if (tool) stopCalendarPlacement(false);
   activeCalendarTool = activeCalendarTool === tool ? null : tool;
   calendarToolButtons.forEach((button) => button.setAttribute("aria-pressed", String(button.dataset.calendarTool === activeCalendarTool)));
@@ -980,6 +986,7 @@ function getThoughtDropTarget(clientX) {
 }
 
 function startThoughtDrag(event) {
+  hideEventPreview();
   const card = event.target.closest("[data-thought-id]");
   if (!card || activeDialog) return;
   stopCalendarPlacement(false);
@@ -1441,6 +1448,7 @@ function stopCalendarPlacement(returnFocus = true) {
 }
 
 function startCalendarPlacement(record, source = {}) {
+  hideEventPreview();
   closeDialog();
   setCalendarTool(null);
   calendarPlacement = { record, ...source, dates: new Set() };
@@ -1644,7 +1652,10 @@ function formatDate(key) {
 }
 
 function updateEventButton(button, key) {
+  if (previewSource === button) hideEventPreview();
   const dayEvents = events[key] || [];
+  if (dayEvents.length) button.setAttribute("aria-keyshortcuts", "ArrowDown");
+  else button.removeAttribute("aria-keyshortcuts");
   const event = dayEvents[0];
   const hiddenCount = dayEvents.length - 1;
   button.className = event ? `cell-button event ${event.colour}` : "cell-button empty-event";
@@ -1818,6 +1829,7 @@ function renderMonth(column, year, monthIndex) {
 }
 
 function renderCalendar(year) {
+  hideEventPreview();
   document.querySelector("#calendar-year").textContent = String(year).padStart(4, "0");
   document.querySelectorAll(".month-column").forEach((column, monthIndex) => {
     renderMonth(column, year, monthIndex);
@@ -1875,6 +1887,7 @@ function goToToday() {
 }
 
 function openDialog(dialog, opener, focusTarget) {
+  hideEventPreview();
   stopCalendarPlacement(false);
   if (activeDialog === listDialog) dayListScrollTop = listDialog.querySelector(".day-dialog").scrollTop;
   if (activeDialog) activeDialog.hidden = true;
@@ -2187,6 +2200,114 @@ function handleDialogKeydown(event) {
     }
   }
 }
+
+function hideEventPreview() {
+  window.clearTimeout(previewCloseTimer);
+  const source = previewSource;
+  const returnFocus = eventPreview.contains(document.activeElement);
+  eventPreview.hidden = true;
+  source?.removeAttribute("aria-describedby");
+  previewSource = null;
+  dismissedPreviewSource = source;
+  if (returnFocus && source?.isConnected) source.focus({ preventScroll: true });
+}
+
+function showEventPreview(button) {
+  if (!button || button === dismissedPreviewSource || activeDialog || activeCalendarTool || calendarPlacement || draggedThoughtId) return;
+  const entries = events[button.dataset.date] || [];
+  if (!entries.length) return;
+  if (previewSource === button) {
+    window.clearTimeout(previewCloseTimer);
+    return;
+  }
+  hideEventPreview();
+  const cell = button.closest(".calendar-cell").getBoundingClientRect();
+  const viewport = calendarScroll.getBoundingClientRect();
+  if (cell.right <= viewport.left || cell.left >= viewport.right || cell.bottom <= 0 || cell.top >= innerHeight) return;
+  previewSource = button;
+  eventPreviewContent.textContent = entries.map((entry) => `${entries.length > 1 ? "• " : ""}${entry.title}${entry.description ? `\n${entry.description}` : ""}`).join("\n\n");
+  const width = Math.min(cell.width, document.documentElement.clientWidth - 16);
+  eventPreview.style.width = `${width}px`;
+  eventPreview.style.left = `${Math.max(8, Math.min(cell.left, document.documentElement.clientWidth - width - 8))}px`;
+  eventPreview.style.top = "8px";
+  eventPreview.hidden = false;
+  eventPreview.scrollTop = 0;
+  const height = eventPreview.getBoundingClientRect().height;
+  eventPreview.style.top = `${Math.max(8, Math.min(cell.top + cell.height / 2 - height / 2, innerHeight - height - 8))}px`;
+  button.setAttribute("aria-describedby", "event-preview-content");
+}
+
+function schedulePreviewClose() {
+  window.clearTimeout(previewCloseTimer);
+  previewCloseTimer = window.setTimeout(() => {
+    if (!eventPreview.matches(":hover") && !previewSource?.matches(":hover")
+      && document.activeElement !== previewSource && !eventPreview.contains(document.activeElement)) hideEventPreview();
+  }, 120);
+}
+
+calendar.addEventListener("pointerover", (event) => {
+  if (event.pointerType === "touch") return;
+  const button = event.target.closest('[data-action="open-day"]');
+  if (button && !button.contains(event.relatedTarget)) showEventPreview(button);
+});
+calendar.addEventListener("pointerout", (event) => {
+  const button = event.target.closest('[data-action="open-day"]');
+  if (button && !button.contains(event.relatedTarget)) {
+    if (dismissedPreviewSource === button) dismissedPreviewSource = null;
+    schedulePreviewClose();
+  }
+});
+calendar.addEventListener("focusin", (event) => {
+  if (event.target.matches('[data-action="open-day"]:focus-visible')) showEventPreview(event.target);
+});
+calendar.addEventListener("focusout", (event) => {
+  if (dismissedPreviewSource === event.target) dismissedPreviewSource = null;
+  schedulePreviewClose();
+});
+eventPreview.addEventListener("pointerenter", () => window.clearTimeout(previewCloseTimer));
+eventPreview.addEventListener("pointerleave", schedulePreviewClose);
+eventPreview.addEventListener("focusout", schedulePreviewClose);
+eventPreviewContent.addEventListener("click", () => {
+  if (window.getSelection()?.toString()) return;
+  const source = previewSource;
+  hideEventPreview();
+  source?.click();
+});
+document.addEventListener("keydown", (event) => {
+  if (activeDialog) return;
+  if (event.key === "ArrowDown" && document.activeElement.matches('[data-action="open-day"]')) {
+    dismissedPreviewSource = null;
+    showEventPreview(document.activeElement);
+    if (previewSource) {
+      event.preventDefault();
+      eventPreview.focus({ preventScroll: true });
+    }
+    return;
+  }
+  const source = previewSource;
+  if (event.key === "Escape" && source) {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    hideEventPreview();
+  } else if (source && document.activeElement === source && event.key === "Tab" && !event.shiftKey) {
+    event.preventDefault();
+    eventPreview.focus({ preventScroll: true });
+  } else if (source && document.activeElement === eventPreview && event.key === "Tab") {
+    event.preventDefault();
+    const buttons = [...app.querySelectorAll("button")].filter((button) => !button.disabled && button.getClientRects().length);
+    const next = event.shiftKey ? source : buttons[buttons.indexOf(source) + 1] || todayButton;
+    hideEventPreview();
+    next.focus({ preventScroll: true });
+  } else if (source && document.activeElement === eventPreview && event.key === "Enter") {
+    event.preventDefault();
+    hideEventPreview();
+    source.click();
+  }
+}, true);
+document.addEventListener("scroll", (event) => {
+  if (event.target !== eventPreview && previewSource) hideEventPreview();
+}, true);
+window.addEventListener("resize", () => hideEventPreview());
 
 calendar.addEventListener("click", (event) => {
   if (suppressThoughtClick && event.detail !== 0) return;

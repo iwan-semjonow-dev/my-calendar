@@ -263,6 +263,25 @@ h1 {
 }
 .more-corner span { position: relative; z-index: 1; }
 .event-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.event-preview[hidden] { display: none; }
+.event-preview {
+  position: fixed;
+  z-index: 40;
+  max-height: calc(100dvh - 16px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 8px 10px;
+  color: #fff;
+  border-radius: 7px;
+  background: rgba(39, 50, 67, 0.78);
+  box-shadow: 0 8px 20px rgba(18, 28, 43, 0.22);
+  font: 500 11px/1.35 "Segoe UI", Arial, sans-serif;
+  letter-spacing: 0.005em;
+  text-align: left;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.event-preview:focus-visible { outline: 2px solid #315be9; outline-offset: 2px; }
 .event.study { background: #d7e2fe; }
 .event.work { background: #d6ead3; }
 .event.project { background: #fae6b7; }
