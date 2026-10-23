@@ -6,43 +6,60 @@ The project is a working yearly prototype in active development. The application
 
 ## Current features
 
-- Twelve vertical month columns. The current system year opens when the page loads; previous and next year buttons let you browse other years.
-- Jump to today's local date from any year, scroll it into view, and briefly highlight the cell.
-- Valid dates and weekdays, including leap years, with distinct styling for weekends, past days, and today.
-- Create, view, and edit events, and delete them with confirmation. Events have a date, title, colour, and description, without start or end times.
-- Change an event's or scheduled thought's date in its editor, including moves to another year. A move adds it to the end of the destination day's list without replacing existing entries; saving on the same date keeps its position. The calendar stays on the displayed year, and day marks, history snapshots, and templates stay unchanged.
-- Multiple events on one date, a counter for additional events, and a list of the day's events.
-- Filters by event title that highlight matches and dim other events while keeping every date in the grid.
-- Create undated thoughts in a horizontal card strip above the calendar, edit their text and colour, and delete them with confirmation.
-- Reorder thoughts by dragging cards within the strip; the order is retained after a successful save.
-- Drag a thought onto a calendar date to schedule it alongside existing events. Its full text, colour, and source identity are retained after reloading; it leaves the undated strip. Scheduled thoughts can be viewed, edited, deleted with confirmation, saved as templates, or added to history.
-- Undo the latest thought placement within nine seconds, or return it through its event card later. The thought returns to the start of the strip with its current text and colour; its description is retained for scheduling it again.
-- A shared 16-colour palette for creating thoughts and for creating and editing events.
-- Add independent day fills and hand-drawn rounded outlines with the same 16-colour palette. Marks persist across reloads and year changes without changing events or thoughts. Click the active tool again, press Escape, or click an empty area of the calendar panel to leave marking mode.
-- Use the eraser to remove a date's fill, outline, events (including scheduled thoughts), or all these layers. Removing events always requires confirmation. Scheduled thoughts are deleted, not returned to the strip; independent history snapshots and templates remain unchanged. If a storage step fails, the dialog reports the completed steps and allows retrying the remainder.
-- Save an event's title, colour, and description as an independent template. Apply a template when creating an event, keep the selected date, and adjust the fields before creation. Events created from a template retain its ID after saving, reloading, editing, and rescheduling, even if the template is later deleted. Events created without a template are not linked automatically.
-- Manage yearly templates in a library: create them directly, edit their title, colour, and description, and delete them with confirmation. Exact duplicates are not added during creation; existing templates remain independent by ID. After saving an existing template, review linked events strictly after today's local date, across all years, and choose which records to update. All candidates are initially selected; individual checkboxes, Select all, and Clear selection let you adjust the selection. Confirmation replaces only the selected events' title, colour, and description, including manual changes to those fields. Unselected events stay unchanged. Declining keeps the saved template and leaves all events unchanged. Today's and past events, unrelated events, and independent history snapshots stay unchanged; deleting a template does not delete its events. If updating events fails after the template is saved, the dialog retains the selection and allows retrying. Conflicting changes in another tab block the operation; a new local day removes newly ineligible events from the selection and requires confirmation again.
-- Place a saved template on multiple dates by selecting days directly in the yearly grid, then confirming the batch. Select a date again to deselect it; year navigation keeps the selection. Cancel before confirmation to discard it. Each date receives a separate event linked to the template; existing entries remain unchanged. A later placement operation can add another event from the same template to the same date.
-- Repeat an existing event on manually selected dates using the same selection and confirmation flow. Copies keep the event's actual text, colour, description, and template link, if any, without changing the original. Selecting the original date or running another operation adds another independent copy. Repeating a scheduled thought creates ordinary events, without duplicating the thought's placement or return link. This does not create an automatic recurring schedule.
-- Manually add independent event snapshots to a chronological history strip. Editing or deleting the original event does not change its snapshots. Deleting a snapshot requires confirmation.
-- Three yearly scales: Compact, Standard, and Large. Selection gives an immediate preview; cancellation restores the previous scale, and saving retains the choice. Scale changes text size and the widths of the date number and weekday areas; row height stays the same.
+### Yearly view and navigation
+
+The calendar has twelve equally sized vertical month columns, with valid dates and weekdays, leap-year handling, and distinct styling for weekends, past days, and today. It opens on the current system year. Browse other years with the navigation buttons, or use Today to return to the current local date, scroll it into view, and briefly highlight it.
+
+The grid fills the available panel width on wide screens. Narrower windows use horizontal scrolling inside the calendar, keeping all twelve months in one row. Compact, Standard, and Large scales change text size and the widths of the date number and weekday areas; row height stays the same. Scale changes can be previewed, cancelled, or saved.
+
+### Events and daily details
+
+Create events with a date, title, colour, and description, without start or end times. View and edit them, move them to another date or year through the editor, or delete them with confirmation. Moving an event appends it to the destination day's list without replacing existing entries; saving on the same date keeps its position. Day marks remain on their original dates.
+
+A date can hold several events, with a counter for additional entries. An empty date opens the creation form, one event opens its card, and several events open the day's list. From the list, open a specific event or create another one. Hovering over an occupied cell or focusing it with the keyboard previews its titles and descriptions, including multiline text. Long previews can be scrolled; Escape closes the preview without opening a dialog.
+
+### Colours, filters, and day marks
+
+A shared 16-colour palette is available for thoughts, events, templates, and day marks. Filters use event titles from the displayed year to highlight matches and dim other entries, while keeping every date in the grid.
+
+Day fills and hand-drawn rounded outlines are independent layers and can coexist on a date without changing its events. The eraser removes a chosen fill, outline, all events on that date, or all these layers together. Any operation that removes events requires confirmation. Erasing a scheduled thought deletes it rather than returning it to the thought strip; history snapshots and templates are unaffected. Press Escape or click the active tool again to leave marking mode.
+
+### Thoughts and scheduling
+
+Keep undated thoughts in the horizontal strip above the calendar. Create them, edit their text and colour, delete them with confirmation, and drag cards to change their order.
+
+Drag a thought onto a date to schedule it alongside existing events. It leaves the undated strip while retaining its full text, colour, and identity. A scheduled thought can be edited, moved to another date, or deleted with confirmation. Undo the latest placement within nine seconds, or return the thought through its card later. It returns to the start of the strip with its current text and colour; any description is retained for scheduling it again. Deletion and return are separate actions.
+
+### Templates and repetition
+
+Create reusable templates directly in the library or save an event's title, colour, and description as a template without a date. Edit templates or delete them with confirmation. Apply a template in the event creation form, then adjust its fields before saving. Events retain the selected template's ID across reloads, edits, and date changes. Matching titles do not create a link, and deleting a template does not delete its events.
+
+Place a saved template on several dates by selecting days directly in the calendar and confirming the batch. Selecting a day again deselects it, and year navigation keeps the selection. Each date receives a separate event linked to that template; existing entries remain. Repeat an existing event through the same date-selection flow to create independent copies of its actual content and template link, if any. The original stays unchanged. Selecting the original date or repeating a later operation can add another copy. Repeating a scheduled thought creates ordinary events, not additional placements of that thought. These are manual operations, not automatic recurring schedules.
+
+A template link does not automatically update events. After saving changes to an existing template, review its linked events strictly after today's local date, across all saved years, and choose which to update. Candidates start selected; individual checkboxes, Select all, and Clear selection control the selection. Confirmation replaces only the selected events' title, colour, and description, including manual edits to those fields. Dates, order, and unselected events stay unchanged. Today and past dates are excluded. Declining the update leaves the saved template in place without changing events; if the event update fails, it can be retried without saving the template again.
+
+### Independent history
+
+Manually add an event to the chronological history strip as an independent snapshot of its date, title, colour, and description. Editing, moving, or deleting the original event, or applying template changes to it, does not alter the snapshot. Deleting a snapshot requires confirmation and does not delete the source event.
 
 ## Data storage and limitations
 
 | Data | Storage | After a page reload |
 |---|---|---|
-| Events | localStorage | Retained between reloads after a successful save |
-| History snapshots | localStorage | Retained between reloads after a successful save |
-| Thoughts | localStorage | Retained between reloads |
-| Scheduled thoughts | localStorage | Retained between reloads after a successful save |
-| Day fills and outlines | localStorage | Retained between reloads after a successful save |
-| Event templates | localStorage | Retained between reloads |
-| Yearly scale setting | localStorage | Retained between reloads |
+| Events, including template links | localStorage | Retained after a successful save |
+| History snapshots | localStorage | Retained after a successful save |
+| Undated thoughts and their order | localStorage | Retained after a successful save |
+| Scheduled thoughts and their source identity | localStorage | Retained after a successful save |
+| Day fills and outlines | localStorage | Retained after a successful save |
+| Event templates | localStorage | Retained after a successful save |
+| Yearly scale setting | localStorage | Retained after a successful save |
 | Filter selection | In memory | Reset |
+| Displayed year | In memory | Current system year opens again |
+| Unsaved form edits and unconfirmed date or event selections | In memory | Discarded |
 
-localStorage belongs to the browser and profile used to open the app. It provides neither cloud synchronization nor a backup. Retention depends on storage being available and saving successfully; clearing browser data can remove saved records.
+localStorage is tied to the browser, profile, and origin used to open the app. It provides neither cloud synchronization nor a backup. Retention depends on storage being available and saving successfully; clearing browser data can remove saved records.
 
-Events and history snapshots are retained after a successful save, but browser storage is not a backup.
+The app reports storage errors and blocks conflicting writes when saved records have changed in another tab. Unsaved input remains temporary: copy it before reloading if you need to keep it.
 
 The current version has no weekly mode, backup export, or backup restoration.
 
@@ -69,4 +86,4 @@ The app uses HTML5, CSS3, JavaScript, and the Web Storage API (`localStorage`).
 
 ## Project direction
 
-See [Project Vision](PROJECT_VISION.md) for the broader product direction. It describes planned capabilities, including detailed weekly planning and manual backup and restore. These are future work, not features of the current prototype. The implemented scope and storage limitations are described above.
+See [Project Vision](PROJECT_VISION.md) for the broader product direction. It includes goals beyond the current application, such as detailed weekly planning, manual backup and restore, synchronization, and AI assistance. Those capabilities are not implemented. The features and storage behaviour described in this README reflect the current yearly calendar.
