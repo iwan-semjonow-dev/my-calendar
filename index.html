@@ -164,6 +164,15 @@
           </div>
         </div>
         <p class="settings-error" id="year-settings-error" role="alert" hidden></p>
+        <div class="settings-section">
+          <h3>Резервная копия</h3>
+          <p class="day-dialog-help">Скачайте сохранённые данные годового календаря за все годы в формате JSON. Несохранённые изменения не входят в копию. Восстановление пока недоступно.</p>
+          <div class="settings-backup-actions">
+            <button class="day-secondary" type="button" id="export-calendar">Создать резервную копию</button>
+          </div>
+          <p class="settings-error" id="backup-export-error" role="alert" hidden></p>
+          <p class="event-card-notice" id="backup-export-status" role="status" hidden></p>
+        </div>
         <footer class="day-dialog-footer">
           <button class="day-secondary" type="button" data-close-dialog>Отмена</button>
           <button class="day-primary" id="save-year-settings" type="button">Сохранить</button>

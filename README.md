@@ -61,7 +61,9 @@ localStorage is tied to the browser, profile, and origin used to open the app. I
 
 The app reports storage errors and blocks conflicting writes when saved records have changed in another tab. Unsaved input remains temporary: copy it before reloading if you need to keep it.
 
-The current version has no weekly mode, backup export, or backup restoration.
+In Settings, use Create backup to download a JSON file containing saved yearly data for all years: events and template links, thoughts and their order, scheduled thoughts, templates, history, day marks, and settings. Unsaved edits are excluded. The app can confirm that a download was started, but cannot confirm that the browser saved the file to disk.
+
+Backup restoration and weekly mode are not implemented. Export uses the existing versioned backup structure; restoration compatibility has not yet been verified.
 
 ## Run locally
 
@@ -86,4 +88,4 @@ The app uses HTML5, CSS3, JavaScript, and the Web Storage API (`localStorage`).
 
 ## Project direction
 
-See [Project Vision](PROJECT_VISION.md) for the broader product direction. It includes goals beyond the current application, such as detailed weekly planning, manual backup and restore, synchronization, and AI assistance. Those capabilities are not implemented. The features and storage behaviour described in this README reflect the current yearly calendar.
+See [Project Vision](PROJECT_VISION.md) for the broader product direction. It includes goals beyond the current application, such as detailed weekly planning, backup restoration, synchronization, and AI assistance. Those capabilities are not implemented. The features and storage behaviour described in this README reflect the current yearly calendar.

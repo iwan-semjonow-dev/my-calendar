@@ -213,16 +213,20 @@ const eventDeleteError = document.querySelector("#event-delete-error");
 let eventStorageSnapshot = null;
 let eventStorageBlocked = false;
 
+function parseDayMarks(raw) {
+  const stored = raw === null ? {} : JSON.parse(raw);
+  if (!stored || typeof stored !== "object" || Array.isArray(stored)
+    || !Object.entries(stored).every(([date, mark]) => isCalendarDate(date)
+      && mark && typeof mark === "object" && !Array.isArray(mark)
+      && ["fill", "ring"].every((part) => !Object.hasOwn(mark, part) || mark[part] === ""
+        || calendarPalette.some(({ value }) => value === mark[part])))) throw new Error("Invalid day marks");
+  return stored;
+}
+
 function loadDayMarks() {
   try {
     dayMarkStorageSnapshot = localStorage.getItem(dayMarkStorageKey);
-    const stored = dayMarkStorageSnapshot === null ? {} : JSON.parse(dayMarkStorageSnapshot);
-    if (!stored || typeof stored !== "object" || Array.isArray(stored)
-      || !Object.entries(stored).every(([date, mark]) => isCalendarDate(date)
-        && mark && typeof mark === "object" && !Array.isArray(mark)
-        && ["fill", "ring"].every((part) => !Object.hasOwn(mark, part) || mark[part] === ""
-          || calendarPalette.some(({ value }) => value === mark[part])))) throw new Error("Invalid day marks");
-    dayMarks = stored;
+    dayMarks = parseDayMarks(dayMarkStorageSnapshot);
   } catch {
     dayMarkStorageBlocked = true;
     showEventStorageError(dayMarkError, "Не удалось загрузить отметки дней: данные повреждены или хранилище недоступно. Запись отметок заблокирована, исходные данные не изменены. После восстановления перезагрузите страницу.");
@@ -523,14 +527,17 @@ function saveYearEvents(nextEvents, errorElement) {
   return true;
 }
 
-function readYearSettings() {
-  const raw = localStorage.getItem(settingsStorageKey);
+function parseYearSettings(raw) {
   if (raw === null) return {};
   const settings = JSON.parse(raw);
   if (!settings || typeof settings !== "object" || Array.isArray(settings)) {
     throw new Error("Invalid settings structure");
   }
   return settings;
+}
+
+function readYearSettings() {
+  return parseYearSettings(localStorage.getItem(settingsStorageKey));
 }
 
 function showSettingsError(message = "") {
@@ -557,6 +564,8 @@ function loadYearScale() {
 }
 
 function openYearSettings() {
+  showEventStorageError(document.querySelector("#backup-export-error"));
+  document.querySelector("#backup-export-status").hidden = true;
   yearScaleDraft = yearScale;
   applyYearScale(yearScaleDraft);
   settingsButton.setAttribute("aria-expanded", "true");
@@ -581,6 +590,85 @@ function saveYearSettings() {
   yearScale = yearScaleDraft;
   showSettingsError();
   closeDialog();
+}
+
+function readCalendarBackup() {
+  const snapshots = new Map();
+  function read(key, label, parse) {
+    try {
+      const raw = localStorage.getItem(key);
+      snapshots.set(key, raw);
+      return parse(raw);
+    } catch {
+      throw new Error(`Не удалось прочитать раздел «${label}»: хранилище недоступно или данные повреждены. Копия не создана, исходные данные не изменены.`);
+    }
+  }
+  const backup = {
+    format: "my-calendar-backup",
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    settings: read(settingsStorageKey, "Настройки", parseYearSettings),
+    events: read(eventStorageKey, "События", (raw) => {
+      parseYearEvents(raw);
+      // Export the original tuples, not the rendered events with attached thoughts.
+      return raw === null ? {} : JSON.parse(raw);
+    }),
+    thoughtPlacements: read(placementStorageKey, "Размещения мыслей", parseThoughtPlacements),
+    dayMarks: read(dayMarkStorageKey, "Отметки дней", parseDayMarks),
+    templates: read(templateStorageKey, "Шаблоны", parseTemplates),
+    thoughts: read(thoughtStorageKey, "Мысли", parseThoughts),
+    history: read(historyStorageKey, "История", parseHistory),
+  };
+  // An explicitly saved empty v2 history takes precedence over legacy history.
+  if (snapshots.get(historyStorageKey) === null) {
+    backup.history = read(legacyHistoryStorageKey, "История", parseHistory);
+  }
+  // Detect a concurrent change during collection instead of exporting a mixed snapshot.
+  for (const [key, raw] of snapshots) {
+    let current;
+    try {
+      current = localStorage.getItem(key);
+    } catch {
+      throw new Error("Не удалось проверить хранилище перед скачиванием. Копия не создана, исходные данные не изменены.");
+    }
+    if (current !== raw) {
+      throw new Error("Данные изменились во время создания копии. Скачивание не начато; повторите попытку.");
+    }
+  }
+  return backup;
+}
+
+function exportCalendarBackup() {
+  if (activeDialog !== settingsDialog) return;
+  const error = document.querySelector("#backup-export-error");
+  const status = document.querySelector("#backup-export-status");
+  showEventStorageError(error);
+  status.hidden = true;
+  let backup;
+  try {
+    backup = readCalendarBackup();
+  } catch (cause) {
+    showEventStorageError(error, cause instanceof Error ? cause.message : "Не удалось прочитать хранилище. Копия не создана.");
+    return;
+  }
+  let url;
+  const link = document.createElement("a");
+  try {
+    url = URL.createObjectURL(new Blob([JSON.stringify(backup, null, 2)], { type: "application/json;charset=utf-8" }));
+    link.href = url;
+    link.download = `my-calendar-backup-${backup.exportedAt.slice(0, 10)}.json`;
+    link.hidden = true;
+    document.body.append(link);
+    link.click();
+    status.textContent = "Скачивание JSON запущено. Проверьте список загрузок браузера: приложение не может подтвердить сохранение файла на диске.";
+    status.hidden = false;
+  } catch {
+    showEventStorageError(error, "Не удалось запустить скачивание. Данные календаря не изменены. Повторите попытку.");
+  } finally {
+    link.remove();
+    // Give the browser time to acquire the Blob before releasing the URL.
+    if (url) window.setTimeout(() => URL.revokeObjectURL(url), 60000);
+  }
 }
 
 function historyTitle(record) {
@@ -752,21 +840,25 @@ function undatedThoughts(items) {
   return items.filter((thought) => !thoughtPlacements.some((placement) => placement.thoughtId === thought.id));
 }
 
+function parseThoughtPlacements(raw) {
+  const items = raw === null ? [] : JSON.parse(raw);
+  const ids = new Set();
+  if (!Array.isArray(items) || !items.every((item) => {
+    if (!item || typeof item.id !== "string" || !item.id.trim() || ids.has(item.id)
+      || typeof item.thoughtId !== "string" || !item.thoughtId.trim()
+      || !isCalendarDate(item.date) || typeof item.title !== "string" || !item.title.trim()
+      || !thoughtColours.includes(item.colour) || item.type !== toEventColour(item.colour)
+      || typeof item.description !== "string") return false;
+    ids.add(item.id);
+    return true;
+  })) throw new Error("Invalid thought placements");
+  return items;
+}
+
 function loadThoughtPlacements() {
   try {
     placementStorageSnapshot = localStorage.getItem(placementStorageKey);
-    const items = placementStorageSnapshot === null ? [] : JSON.parse(placementStorageSnapshot);
-    const ids = new Set();
-    if (!Array.isArray(items) || !items.every((item) => {
-      if (!item || typeof item.id !== "string" || !item.id.trim() || ids.has(item.id)
-        || typeof item.thoughtId !== "string" || !item.thoughtId.trim()
-        || !isCalendarDate(item.date) || typeof item.title !== "string" || !item.title.trim()
-        || !thoughtColours.includes(item.colour) || item.type !== toEventColour(item.colour)
-        || typeof item.description !== "string") return false;
-      ids.add(item.id);
-      return true;
-    })) throw new Error("Invalid thought placements");
-    thoughtPlacements = items;
+    thoughtPlacements = parseThoughtPlacements(placementStorageSnapshot);
     for (const placement of thoughtPlacements) attachThoughtPlacement(placement);
   } catch {
     placementStorageBlocked = true;
@@ -1119,8 +1211,7 @@ function getEventColourName(colour) {
   return colourNames[colour] || templateColourNames[colour];
 }
 
-function readTemplateStore() {
-  const raw = localStorage.getItem(templateStorageKey);
+function parseTemplates(raw) {
   const items = raw === null ? [] : JSON.parse(raw);
   const ids = new Set();
   if (!Array.isArray(items) || !items.every((item) => {
@@ -1130,7 +1221,12 @@ function readTemplateStore() {
     ids.add(item.id);
     return true;
   })) throw new Error("Invalid templates data");
-  return { raw, items };
+  return items;
+}
+
+function readTemplateStore() {
+  const raw = localStorage.getItem(templateStorageKey);
+  return { raw, items: parseTemplates(raw) };
 }
 
 function readSavedTemplates() {
@@ -2449,6 +2545,7 @@ scaleButtons.forEach((button) => button.addEventListener("click", () => {
   applyYearScale(yearScaleDraft);
 }));
 document.querySelector("#save-year-settings").addEventListener("click", saveYearSettings);
+document.querySelector("#export-calendar").addEventListener("click", exportCalendarBackup);
 
 for (const dialog of [creationDialog, cardDialog, listDialog, filtersDialog, thoughtDialog, thoughtDeleteDialog, historyDeleteDialog, settingsDialog, dayEraseDialog, templatesDialog, templateDialog, templateDeleteDialog, templateFutureDialog]) {
   dialog.addEventListener("click", (event) => {
