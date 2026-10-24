@@ -212,6 +212,14 @@ const eventSaveError = document.querySelector("#event-save-error");
 const eventDeleteError = document.querySelector("#event-delete-error");
 let eventStorageSnapshot = null;
 let eventStorageBlocked = false;
+const backupFile = document.querySelector("#backup-file");
+const importButton = document.querySelector("#import-calendar");
+const restoreDialog = document.querySelector("#backup-restore-dialog");
+const restoreConfirm = document.querySelector("#confirm-backup-restore");
+const restoreError = document.querySelector("#backup-restore-error");
+let backupReadToken = 0;
+let pendingRestore = null;
+let restoreNeedsReload = false;
 
 function parseDayMarks(raw) {
   const stored = raw === null ? {} : JSON.parse(raw);
@@ -254,6 +262,7 @@ function applyDayMark(cell) {
 }
 
 function saveDayMark(cell) {
+  if (restoreNeedsReload) return false;
   if (dayMarkStorageBlocked) return;
   const date = cell.dataset.date;
   if (!isCalendarDate(date) || Number(date.slice(0, 4)) !== displayedYear) return;
@@ -343,6 +352,7 @@ function checkDayEraseStorage(part) {
 }
 
 function executeDayErase() {
+  if (restoreNeedsReload) return false;
   if (activeDialog !== dayEraseDialog || !pendingDayErase?.part) return;
   const operation = pendingDayErase;
   const { key, part, completed } = operation;
@@ -507,6 +517,7 @@ function loadYearEvents() {
 }
 
 function saveYearEvents(nextEvents, errorElement) {
+  if (restoreNeedsReload) return false;
   if (eventStorageBlocked) {
     showEventStorageError(errorElement, eventLoadError.textContent);
     return false;
@@ -566,6 +577,8 @@ function loadYearScale() {
 function openYearSettings() {
   showEventStorageError(document.querySelector("#backup-export-error"));
   document.querySelector("#backup-export-status").hidden = true;
+  showEventStorageError(document.querySelector("#backup-import-error"));
+  document.querySelector("#backup-read-status").hidden = true;
   yearScaleDraft = yearScale;
   applyYearScale(yearScaleDraft);
   settingsButton.setAttribute("aria-expanded", "true");
@@ -573,6 +586,7 @@ function openYearSettings() {
 }
 
 function saveYearSettings() {
+  if (restoreNeedsReload) return false;
   if (activeDialog !== settingsDialog) return;
   let settings;
   try {
@@ -671,6 +685,153 @@ function exportCalendarBackup() {
   }
 }
 
+function backupSections() {
+  return [
+    ["settings", settingsStorageKey, parseYearSettings, "настройки"],
+    ["events", eventStorageKey, parseYearEvents, "события"],
+    ["thoughtPlacements", placementStorageKey, parseThoughtPlacements, "размещения мыслей"],
+    ["dayMarks", dayMarkStorageKey, parseDayMarks, "отметки дней"],
+    ["templates", templateStorageKey, parseTemplates, "шаблоны"],
+    ["thoughts", thoughtStorageKey, parseThoughts, "мысли"],
+    ["history", historyStorageKey, parseHistory, "история"],
+  ];
+}
+
+function validateCalendarBackup(text) {
+  let backup;
+  try { backup = JSON.parse(text); }
+  catch { throw new Error("Файл не содержит корректный JSON."); }
+  if (!backup || typeof backup !== "object" || Array.isArray(backup)
+    || backup.format !== "my-calendar-backup" || backup.version !== 1) {
+    throw new Error("Неподдерживаемый формат или версия резервной копии. Нужен my-calendar-backup, версия 1.");
+  }
+  for (const [name, , parse, label] of backupSections()) {
+    if (!Object.hasOwn(backup, name)) throw new Error(`В файле отсутствует обязательный раздел: ${label}.`);
+    try { parse(JSON.stringify(backup[name])); }
+    catch { throw new Error(`Некорректные данные в разделе: ${label}.`); }
+  }
+  // Older readers do not require this informational timestamp.
+  if (Object.hasOwn(backup, "exportedAt")
+    && (typeof backup.exportedAt !== "string" || !Number.isFinite(Date.parse(backup.exportedAt)))) {
+    throw new Error("Некорректное время создания резервной копии.");
+  }
+  return backup;
+}
+
+function snapshotRestoreStorage() {
+  return new Map([...backupSections().map(([, key]) => key), legacyHistoryStorageKey]
+    .map((key) => [key, localStorage.getItem(key)]));
+}
+
+function restoreStorageMatches(snapshot) {
+  return [...snapshot].every(([key, raw]) => localStorage.getItem(key) === raw);
+}
+
+async function prepareBackupRestore() {
+  const file = backupFile.files?.[0];
+  backupFile.value = "";
+  const token = ++backupReadToken;
+  if (!file || activeDialog !== settingsDialog || restoreNeedsReload) return;
+  const error = document.querySelector("#backup-import-error");
+  const status = document.querySelector("#backup-read-status");
+  showEventStorageError(error);
+  status.textContent = "Чтение и проверка файла…";
+  status.hidden = false;
+  try {
+    let text;
+    try { text = await file.text(); }
+    catch { throw new Error("Не удалось прочитать файл. Выберите его ещё раз."); }
+    if (token !== backupReadToken || activeDialog !== settingsDialog) return;
+    const backup = validateCalendarBackup(text);
+    let original;
+    try { original = snapshotRestoreStorage(); }
+    catch { throw new Error("Хранилище недоступно. Восстановление не подготовлено, данные не изменены."); }
+    pendingRestore = { original, writes: new Map(backupSections().map(([name, key]) => [key, JSON.stringify(backup[name])])) };
+    const count = Object.values(backup.events).reduce((sum, records) => sum + records.length, 0);
+    document.querySelector("#backup-restore-summary").textContent = `Файл: ${file.name}\nСохранённые данные годового календаря за ВСЕ годы будут заменены данными файла. Это не объединение.\nСобытия: ${count}; мысли: ${backup.thoughts.length}; размещения мыслей: ${backup.thoughtPlacements.length}; шаблоны: ${backup.templates.length}; снимки истории: ${backup.history.length}; даты с отметками: ${Object.keys(backup.dayMarks).length}. Настройки также будут заменены.\nПосле успешной записи страница перезагрузится; временный выбор и несохранённый масштаб будут сброшены.`;
+    showEventStorageError(restoreError);
+    restoreConfirm.disabled = false;
+    openDialog(restoreDialog, null, document.querySelector("#cancel-backup-restore"));
+  } catch (cause) {
+    if (token === backupReadToken && activeDialog === settingsDialog) showEventStorageError(error, cause.message);
+  } finally {
+    if (token === backupReadToken) status.hidden = true;
+  }
+}
+
+function rollbackBackupRestore(original, writes, attempted) {
+  for (const key of [...attempted].reverse()) {
+    try {
+      const current = localStorage.getItem(key);
+      if (current === original.get(key)) continue;
+      // Never overwrite a value that no longer matches this operation's write.
+      if (current !== writes.get(key)) continue;
+      if (original.get(key) === null) localStorage.removeItem(key);
+      else localStorage.setItem(key, original.get(key));
+    } catch { /* Verify each key below, including a failed rollback. */ }
+  }
+  const unresolved = [];
+  for (const [key, raw] of original) {
+    try { if (localStorage.getItem(key) === raw) continue; }
+    catch { /* An unreadable key cannot be claimed as restored. */ }
+    unresolved.push(backupSections().find(([, candidate]) => candidate === key)?.[3] || "старая история");
+  }
+  return unresolved;
+}
+
+function requireRestoreReload(message) {
+  restoreNeedsReload = true;
+  pendingRestore = null;
+  hideThoughtUndo();
+  thoughtUndoToast.inert = true;
+  restoreDialog.querySelectorAll("[data-close-dialog]").forEach((button) => { button.hidden = true; });
+  restoreConfirm.hidden = true;
+  const reload = document.querySelector("#reload-after-restore");
+  reload.hidden = false;
+  showEventStorageError(restoreError, message);
+  reload.focus();
+}
+
+function confirmBackupRestore() {
+  if (activeDialog !== restoreDialog || !pendingRestore || restoreConfirm.disabled || restoreNeedsReload) return;
+  const { original, writes } = pendingRestore;
+  restoreConfirm.disabled = true;
+  showEventStorageError(restoreError);
+  try {
+    if (!restoreStorageMatches(original)) throw new Error("conflict");
+  } catch {
+    pendingRestore = null;
+    showEventStorageError(restoreError, "Данные изменились после подготовки или хранилище недоступно. Ничего не записано. Отмените действие и заново выберите файл.");
+    document.querySelector("#cancel-backup-restore").focus();
+    return;
+  }
+  const expected = new Map(original);
+  const attempted = [];
+  try {
+    for (const [key, raw] of writes) {
+      if (!restoreStorageMatches(expected)) throw new Error("conflict");
+      if (raw === original.get(key)) continue;
+      attempted.push(key);
+      localStorage.setItem(key, raw);
+      expected.set(key, raw);
+    }
+    if (!restoreStorageMatches(expected)) throw new Error("verification failed");
+  } catch {
+    const unresolved = rollbackBackupRestore(original, writes, attempted);
+    if (unresolved.length) {
+      requireRestoreReload(`Восстановление не завершено. Исходное состояние не подтверждено для разделов: ${unresolved.join(", ")}. Там могут остаться данные файла или другой вкладки. Дальнейшие изменения заблокированы. Перезагрузите страницу, проверьте данные и при необходимости заново восстановите копию.`);
+    } else {
+      showEventStorageError(restoreError, "Запись не завершена. Исходные значения всех разделов восстановлены и проверены. Можно повторить попытку или отменить действие.");
+      restoreConfirm.disabled = false;
+      document.querySelector("#cancel-backup-restore").focus();
+    }
+    return;
+  }
+  requireRestoreReload("Все разделы записаны и проверены. Перезагрузка календаря…");
+  try { window.location.reload(); }
+  catch { showEventStorageError(restoreError, "Данные восстановлены. Перезагрузите страницу, чтобы работать с ними."); }
+}
+
 function historyTitle(record) {
   return Object.hasOwn(record, "title") ? record.title : record.label;
 }
@@ -711,6 +872,7 @@ function loadHistory() {
 }
 
 function saveHistory(nextRecords, errorElement) {
+  if (restoreNeedsReload) return false;
   if (historyStorageBlocked) {
     showEventStorageError(errorElement, historyLoadError.textContent);
     return false;
@@ -881,6 +1043,7 @@ function checkThoughtStorage() {
 }
 
 function saveThoughtPlacements(nextPlacements, errorElement) {
+  if (restoreNeedsReload) return false;
   try {
     checkThoughtStorage();
     const serialized = JSON.stringify(nextPlacements);
@@ -1141,6 +1304,7 @@ function openThoughtDialog(id = null) {
 }
 
 function saveThoughts(nextThoughts, errorElement) {
+  if (restoreNeedsReload) return false;
   if (thoughtStorageBlocked) {
     showThoughtError(errorElement, thoughtLoadError.textContent);
     return false;
@@ -1238,6 +1402,7 @@ function findMatchingTemplate(items, candidate) {
 }
 
 function writeTemplates(items, expectedRaw, errorElement) {
+  if (restoreNeedsReload) return false;
   try {
     if (localStorage.getItem(templateStorageKey) !== expectedRaw) {
       showEventStorageError(errorElement, "Шаблоны изменились в другой вкладке. Запись остановлена. Скопируйте черновик перед закрытием редактора и откройте библиотеку заново.");
@@ -1983,6 +2148,7 @@ function goToToday() {
 }
 
 function openDialog(dialog, opener, focusTarget) {
+  if (restoreNeedsReload) return;
   hideEventPreview();
   stopCalendarPlacement(false);
   if (activeDialog === listDialog) dayListScrollTop = listDialog.querySelector(".day-dialog").scrollTop;
@@ -2006,6 +2172,9 @@ function restoreDialogFocus() {
 }
 
 function closeDialog() {
+  if (restoreNeedsReload) return;
+  backupReadToken += 1;
+  pendingRestore = null;
   if (!activeDialog) return;
   if (activeDialog === settingsDialog) {
     applyYearScale(yearScale);
@@ -2154,7 +2323,13 @@ function confirmDeletion() {
 }
 
 function dismissDialog() {
-  if (activeDialog === templateFutureDialog) finishTemplateUpdate("Шаблон сохранён. События оставлены без изменений.");
+  if (restoreNeedsReload) return;
+  if (activeDialog === restoreDialog) {
+    backupReadToken += 1;
+    pendingRestore = null;
+    openDialog(settingsDialog, null, importButton);
+  }
+  else if (activeDialog === templateFutureDialog) finishTemplateUpdate("Шаблон сохранён. События оставлены без изменений.");
   else if (activeDialog === templateDialog) showTemplateLibrary(activeTemplateId);
   else if (activeDialog === templateDeleteDialog) openDialog(templateDialog, null, templateDeleteButton);
   else if (activeDialog === thoughtDeleteDialog) cancelThoughtDeletion();
@@ -2546,8 +2721,18 @@ scaleButtons.forEach((button) => button.addEventListener("click", () => {
 }));
 document.querySelector("#save-year-settings").addEventListener("click", saveYearSettings);
 document.querySelector("#export-calendar").addEventListener("click", exportCalendarBackup);
+importButton.addEventListener("click", () => {
+  if (activeDialog !== settingsDialog || restoreNeedsReload) return;
+  backupReadToken += 1;
+  backupFile.value = "";
+  document.querySelector("#backup-read-status").hidden = true;
+  backupFile.click();
+});
+backupFile.addEventListener("change", prepareBackupRestore);
+restoreConfirm.addEventListener("click", confirmBackupRestore);
+document.querySelector("#reload-after-restore").addEventListener("click", () => window.location.reload());
 
-for (const dialog of [creationDialog, cardDialog, listDialog, filtersDialog, thoughtDialog, thoughtDeleteDialog, historyDeleteDialog, settingsDialog, dayEraseDialog, templatesDialog, templateDialog, templateDeleteDialog, templateFutureDialog]) {
+for (const dialog of [creationDialog, cardDialog, listDialog, filtersDialog, thoughtDialog, thoughtDeleteDialog, historyDeleteDialog, settingsDialog, dayEraseDialog, templatesDialog, templateDialog, templateDeleteDialog, templateFutureDialog, restoreDialog]) {
   dialog.addEventListener("click", (event) => {
     if (event.target === dialog || event.target.closest("[data-close-dialog]")) dismissDialog();
     else if (event.target.closest("[data-back-to-list]")) returnToDayList();

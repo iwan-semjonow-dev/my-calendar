@@ -63,7 +63,9 @@ The app reports storage errors and blocks conflicting writes when saved records 
 
 In Settings, use Create backup to download a JSON file containing saved yearly data for all years: events and template links, thoughts and their order, scheduled thoughts, templates, history, day marks, and settings. Unsaved edits are excluded. The app can confirm that a download was started, but cannot confirm that the browser saved the file to disk.
 
-Backup restoration and weekly mode are not implemented. Export uses the existing versioned backup structure; restoration compatibility has not yet been verified.
+Use Restore data in Settings to select a JSON backup. The app validates its format, version, and all required sections before showing a summary. Confirmation replaces saved yearly data for all years, including settings; it does not merge records. A successful restore reloads the calendar and clears temporary selections and drafts. Other browser storage keys are left alone. Weekly mode is not implemented.
+
+Restore checks for changes made in another tab and attempts a verified rollback if a write fails. If the original state cannot be confirmed, further edits are blocked until reload. Storage across multiple keys is not transactional: simultaneous writes can still race, and closing the page or browser during restoration can leave a partial result. Keep the backup file, avoid editing the calendar in other tabs during restoration, and inspect the data before retrying after an interruption.
 
 ## Run locally
 
@@ -88,4 +90,4 @@ The app uses HTML5, CSS3, JavaScript, and the Web Storage API (`localStorage`).
 
 ## Project direction
 
-See [Project Vision](PROJECT_VISION.md) for the broader product direction. It includes goals beyond the current application, such as detailed weekly planning, backup restoration, synchronization, and AI assistance. Those capabilities are not implemented. The features and storage behaviour described in this README reflect the current yearly calendar.
+See [Project Vision](PROJECT_VISION.md) for the broader product direction. It includes goals beyond the current application, such as detailed weekly planning, synchronization, and AI assistance. Those capabilities are not implemented. The features and storage behaviour described in this README reflect the current yearly calendar.

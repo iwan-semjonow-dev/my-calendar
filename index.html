@@ -166,12 +166,16 @@
         <p class="settings-error" id="year-settings-error" role="alert" hidden></p>
         <div class="settings-section">
           <h3>Резервная копия</h3>
-          <p class="day-dialog-help">Скачайте сохранённые данные годового календаря за все годы в формате JSON. Несохранённые изменения не входят в копию. Восстановление пока недоступно.</p>
+          <p class="day-dialog-help">Скачайте сохранённые данные за все годы в формате JSON или восстановите их из копии. Восстановление заменяет сохранённые данные после подтверждения.</p>
           <div class="settings-backup-actions">
             <button class="day-secondary" type="button" id="export-calendar">Создать резервную копию</button>
+            <button class="day-secondary" type="button" id="import-calendar">Восстановить данные</button>
+            <input type="file" id="backup-file" accept=".json,application/json" hidden />
           </div>
           <p class="settings-error" id="backup-export-error" role="alert" hidden></p>
           <p class="event-card-notice" id="backup-export-status" role="status" hidden></p>
+          <p class="settings-error" id="backup-import-error" role="alert" hidden></p>
+          <p class="day-dialog-help" id="backup-read-status" role="status" hidden></p>
         </div>
         <footer class="day-dialog-footer">
           <button class="day-secondary" type="button" data-close-dialog>Отмена</button>
@@ -450,6 +454,23 @@
         <footer class="day-dialog-footer">
           <button class="day-secondary" type="button" id="decline-template-future" data-close-dialog>Только шаблон</button>
           <button class="day-primary" type="button" id="apply-template-future">Применить к выбранным</button>
+        </footer>
+      </section>
+    </div>
+    <div class="day-backdrop" id="backup-restore-dialog" role="dialog" aria-modal="true" aria-labelledby="backup-restore-title" aria-describedby="backup-restore-summary" hidden>
+      <section class="day-dialog">
+        <header class="day-dialog-header">
+          <h2 id="backup-restore-title">Восстановить данные?</h2>
+          <button class="settings-close" type="button" data-close-dialog aria-label="Отменить восстановление">
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 6 18 18M18 6 6 18" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="2.2" /></svg>
+          </button>
+        </header>
+        <p class="day-dialog-help" id="backup-restore-summary"></p>
+        <p class="settings-error" id="backup-restore-error" role="alert" hidden></p>
+        <footer class="day-dialog-footer">
+          <button class="day-secondary" type="button" id="cancel-backup-restore" data-close-dialog>Отмена</button>
+          <button class="day-primary" type="button" id="confirm-backup-restore">Восстановить данные</button>
+          <button class="day-primary" type="button" id="reload-after-restore" hidden>Перезагрузить календарь</button>
         </footer>
       </section>
     </div>
