@@ -42,7 +42,7 @@ A template link does not automatically update events. After saving changes to an
 
 Manually add an event to the chronological history strip as an independent snapshot of its date, title, colour, and description. Editing, moving, or deleting the original event, or applying template changes to it, does not alter the snapshot. Deleting a snapshot requires confirmation and does not delete the source event.
 
-## Data storage and limitations
+## Local storage
 
 | Data | Storage | After a page reload |
 |---|---|---|
@@ -56,16 +56,58 @@ Manually add an event to the chronological history strip as an independent snaps
 | Filter selection | In memory | Reset |
 | Displayed year | In memory | Current system year opens again |
 | Unsaved form edits and unconfirmed date or event selections | In memory | Discarded |
+| Unsaved scale preview and active marking tool | In memory | Reset |
 
-localStorage is tied to the browser, profile, and origin used to open the app. It provides neither cloud synchronization nor a backup. Retention depends on storage being available and saving successfully; clearing browser data can remove saved records.
+localStorage belongs to the browser, profile, and origin used to open the app. For a web address, the origin is its protocol, host, and port; opening the app at a different origin uses separate storage. Retention requires storage to be available and each save to succeed. Clearing browser data can delete the saved calendar.
+
+Local storage is not a backup and does not automatically synchronize devices. Copying the application files or running `git push` does not transfer localStorage data. Use a JSON backup to move saved data between browsers, profiles, or devices.
+
+Storage behaviour for direct `file://` access varies between browsers; see [Run locally](#run-locally) before relying on saved data.
 
 The app reports storage errors and blocks conflicting writes when saved records have changed in another tab. Unsaved input remains temporary: copy it before reloading if you need to keep it.
 
-In Settings, use Create backup to download a JSON file containing saved yearly data for all years: events and template links, thoughts and their order, scheduled thoughts, templates, history, day marks, and settings. Unsaved edits are excluded. The app can confirm that a download was started, but cannot confirm that the browser saved the file to disk.
+## Backups and restoration
 
-Use Restore data in Settings to select a JSON backup. The app validates its format, version, and all required sections before showing a summary. Confirmation replaces saved yearly data for all years, including settings; it does not merge records. A successful restore reloads the calendar and clears temporary selections and drafts. Other browser storage keys are left alone. Weekly mode is not implemented.
+### Create a backup
 
-Restore checks for changes made in another tab and attempts a verified rollback if a write fails. If the original state cannot be confirmed, further edits are blocked until reload. Storage across multiple keys is not transactional: simultaneous writes can still race, and closing the page or browser during restoration can leave a partial result. Keep the backup file, avoid editing the calendar in other tabs during restoration, and inspect the data before retrying after an interruption.
+1. Open Settings (**Настройки**).
+2. Select Create backup (**Создать резервную копию**).
+3. Check the browser's downloads and keep the downloaded `.json` file in a safe place. The app confirms that downloading was started, not that the file was saved to disk.
+
+The suggested filename is `my-calendar-backup-YYYY-MM-DD.json`, using the export date in UTC. Your browser may adjust the name if a file with that name already exists.
+
+Export reads the latest saved data for all years, regardless of the displayed year: events and template links, undated thoughts and their order, scheduled thoughts and information needed to return them, templates, independent history snapshots, day fills and outlines, and settings. Drafts, temporary selections, and an unsaved scale preview are excluded. Export does not change the stored calendar.
+
+If a section cannot be read, contains unsupported or damaged data, or changes during collection, export reports an error and does not start a download. It does not silently substitute empty data to produce an incomplete backup.
+
+### Restore a backup
+
+Before replacing a calendar, export its current data to a separate file if you may need it later.
+
+1. Open Settings (**Настройки**) and select Restore data (**Восстановить данные**).
+2. Choose a JSON backup file. The app reads and validates the complete file before opening confirmation.
+3. Review the filename and the summary of records to be restored.
+4. Select Restore data (**Восстановить данные**) to replace the saved calendar, or Cancel (**Отмена**) to leave it unchanged.
+
+Confirmation replaces saved yearly data for **all years and settings**; records are not merged. Before confirmation, selecting or reading a file does not change calendar data. Cancelling, closing the confirmation, pressing Escape, or clicking its backdrop does not write changes. Unrelated browser storage keys are left alone.
+
+After all sections have been written and verified, the page reloads with the restored data and settings. Temporary selections, drafts, and the unsaved scale preview are reset. You can select the same file again if another attempt is needed.
+
+### Move data to another device
+
+Export a backup on the source device, transfer the JSON file yourself, then restore it in My Calendar on the receiving device. Restoration replaces the receiving calendar; this is a manual transfer, not two-way synchronization.
+
+The JSON file contains user records in plain text and is not encrypted by the app. Store and share it with the same care as the calendar's contents.
+
+### Errors and recovery limits
+
+The current backup format is `my-calendar-backup`, version `1`. Restoration checks the required settings, events, thought placements, day marks, templates, thoughts, and history sections using the app's supported record formats. Invalid JSON, an unsupported format or version, missing sections, and damaged required data are rejected before writing. Compatibility with every older application or backup version is not guaranteed.
+
+If saved data changes after the confirmation was prepared, including in another tab, restoration stops and asks you to cancel and select the file again. Avoid editing the calendar in other tabs while restoring.
+
+If a write fails, the app attempts to restore the original values and verifies the result. Detected changes from another tab are not overwritten during rollback. If all original values are confirmed, you can retry or cancel. If the original state cannot be confirmed, the app reports the affected sections and blocks further writes from the page until reload; it does not report a successful restoration.
+
+localStorage has no transaction spanning multiple keys. Checks cannot prevent every concurrent-write race, and closing the page or browser during restoration can leave a partial result. After an interruption, keep the backup file, reload the page, inspect the data, and repeat restoration if needed. The app does not guarantee recovery from a browser crash or interruption midway through writing.
 
 ## Run locally
 
