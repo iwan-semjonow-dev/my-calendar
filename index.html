@@ -8,7 +8,7 @@
     <script src="script.js" defer></script>
   </head>
   <body>
-    <div class="app">
+    <div class="app" id="year-view">
       <header class="app-header">
         <p class="app-name">My Calendar</p>
       </header>
@@ -146,6 +146,21 @@
         <button type="button" id="cancel-template-placement">Отмена</button>
       </div>
     </div>
+    <main class="weekly-view" id="week-view" aria-labelledby="week-title" hidden inert>
+      <header class="weekly-topbar">
+        <h1 id="week-title" tabindex="-1">Недельный календарь</h1>
+        <button class="weekly-back" type="button" id="back-to-year">← Годовой календарь</button>
+      </header>
+      <div class="weekly-crumb">
+        <strong id="week-range"></strong>
+        <span id="week-selected"></span>
+      </div>
+      <p class="weekly-notice">Пока доступны даты недели и возврат к году. Временная сетка и недельные события ещё не добавлены.</p>
+      <p class="weekly-notice" id="week-boundary" hidden>Поддерживаются даты с 0001 по 9999 год. Позиции вне этого диапазона недоступны.</p>
+      <section class="weekly-calendar" tabindex="0" aria-label="Даты выбранной недели">
+        <div class="weekly-days" id="week-days"></div>
+      </section>
+    </main>
     <div class="day-backdrop settings-backdrop" id="year-settings" role="dialog" aria-modal="true" aria-labelledby="year-settings-title" hidden>
       <section class="day-dialog settings-dialog">
         <header class="day-dialog-header">

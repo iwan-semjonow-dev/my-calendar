@@ -41,6 +41,33 @@ body {
   padding: 0 8px 32px;
 }
 
+#year-view[hidden], #week-view[hidden] { display: none; }
+body.viewing-week { background: #f4f7fb; }
+.weekly-view { width: 100%; padding: 0 12px 32px; color: #172235; }
+.weekly-topbar { display: flex; flex-wrap: wrap; min-height: 64px; align-items: center; gap: 12px; padding: 12px 0; }
+.weekly-topbar h1 { margin: 0; color: #18263a; font-size: 23px; letter-spacing: -.04em; }
+.weekly-back { min-height: 36px; padding: 0 12px; color: #354258; border: 1px solid #d8e1eb; border-radius: 8px; background: #fff; box-shadow: 0 1px 2px rgba(22,37,56,.03); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
+.weekly-back:hover { border-color: #bbc9d9; background: #fafcff; }
+.weekly-back:focus-visible, .weekly-calendar:focus-visible { outline: 2px solid #315be9; outline-offset: 2px; }
+.weekly-crumb { display: flex; flex-wrap: wrap; gap: 8px 16px; padding: 8px 2px 10px; color: #718095; font-size: 12px; }
+.weekly-crumb strong { color: #26364c; font-size: 14px; font-weight: 600; }
+.weekly-notice { margin: 0 0 12px; padding: 10px 13px; color: #4a5b77; border: 1px solid #dbe6ff; border-radius: 10px; background: #f1f5ff; font-size: 12px; }
+.weekly-calendar { overflow-x: auto; border: 1px solid #d9e2ec; border-radius: 16px; background: #fff; box-shadow: 0 18px 42px rgba(37,55,79,.09); }
+.weekly-days { position: relative; display: grid; grid-template-columns: repeat(7, minmax(128px, 1fr)); min-width: 896px; }
+.weekly-day { min-width: 0; border-right: 1px solid #e4eaf1; }
+.weekly-day:last-child { border-right: 0; }
+.weekly-day-title { position: relative; min-height: 72px; margin: 0; padding: 14px 14px 12px; }
+.weekly-weekday { display: block; color: #78869a; font-size: 10px; font-weight: 800; letter-spacing: .045em; }
+.weekly-date { display: block; margin-top: 5px; color: #27364b; font-size: 15px; font-weight: 780; }
+.weekly-day.weekend { background: #fcfdff; }
+.weekly-day.weekend .weekly-date { color: #b34c55; }
+.weekly-day.active { background: #f1f5ff; }
+.weekly-day.active .weekly-day-title::after { position: absolute; right: 0; bottom: 0; left: 0; height: 3px; content: ""; background: #315be9; }
+.weekly-day.active .weekly-weekday { color: #315be9; }
+.weekly-day.active .weekly-date { color: #264fd7; }
+.weekly-day.unavailable { background: #f8fafc; }
+.weekly-day.unavailable .weekly-date { color: #78869a; font-size: 12px; }
+
 .app-header {
   padding: 20px 0;
   border-bottom: 1px solid #dde2e8;
@@ -174,11 +201,20 @@ h1 {
 }
 
 .date-number {
+  border: 0;
+  border-right: 1px solid #d8dde5;
+  border-radius: 0;
+  background: #fff;
+  font-family: inherit;
+  cursor: pointer;
   justify-content: center;
   color: #333b48;
   font-size: var(--year-date-font-size);
   font-weight: 650;
 }
+
+.date-number:hover { position: relative; z-index: 1; outline: 1px solid #6f8df0; outline-offset: -1px; }
+.date-number:focus-visible { outline: 2px solid #315be9; outline-offset: -2px; }
 
 .cell-weekday {
   justify-content: flex-start;

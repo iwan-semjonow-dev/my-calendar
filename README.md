@@ -12,6 +12,8 @@ The calendar has twelve equally sized vertical month columns, with valid dates a
 
 The grid fills the available panel width on wide screens. Narrower windows use horizontal scrolling inside the calendar, keeping all twelve months in one row. Compact, Standard, and Large scales change text size and the widths of the date number and weekday areas; row height stays the same. Scale changes can be previewed, cancelled, or saved.
 
+Select a day number to open the Monday-to-Sunday week containing that exact date, including its year. The weekly view currently shows only the seven date columns, the selected day, and a return button (**← Годовой календарь**). Returning keeps the original yearly view, scroll position, and focus. Dates beyond the supported years 0001–9999 are shown as unavailable. Time slots, weekly events, and week navigation are not implemented yet. While marking days or selecting dates for a batch, day numbers continue to act on that mode instead of opening a week. Opening a week does not change saved data or the scope of yearly backups.
+
 ### Events and daily details
 
 Create events with a date, title, colour, and description, without start or end times. View and edit them, move them to another date or year through the editor, or delete them with confirmation. Moving an event appends it to the destination day's list without replacing existing entries; saving on the same date keeps its position. Day marks remain on their original dates.

@@ -2037,6 +2037,98 @@ function applyDayState(row, date) {
   }
 }
 
+const weekView = document.querySelector("#week-view");
+const weekDaysContainer = document.querySelector("#week-days");
+let yearlyReturnContext = null;
+
+function getSelectedWeek(key) {
+  if (!isCalendarDate(key)) return [];
+  const [year, month, day] = key.split("-").map(Number);
+  if (year < minimumYear || year > maximumYear) return [];
+  const selected = createLocalDate(year, month - 1, day);
+  const mondayOffset = (selected.getDay() + 6) % 7;
+  return Array.from({ length: 7 }, (_, index) => {
+    const date = createLocalDate(year, month - 1, day - mondayOffset + index);
+    if (date.getFullYear() < minimumYear || date.getFullYear() > maximumYear) return null;
+    return getDateKey(date.getFullYear(), date.getMonth(), date.getDate());
+  });
+}
+
+function renderSelectedWeek(key, dates) {
+  weekDaysContainer.replaceChildren();
+  dates.forEach((date, index) => {
+    const column = document.createElement("section");
+    column.className = "weekly-day";
+    const heading = document.createElement("h2");
+    heading.className = "weekly-day-title";
+    const weekday = document.createElement("span");
+    weekday.className = "weekly-weekday";
+    weekday.textContent = weekDays[index] + (date === key ? " · выбрано" : "");
+    const label = document.createElement(date ? "time" : "span");
+    label.className = "weekly-date";
+    if (date) {
+      column.dataset.date = date;
+      label.dateTime = date;
+      const [, month, day] = date.split("-").map(Number);
+      label.textContent = `${day} ${monthNamesGenitive[month - 1]}`;
+      column.setAttribute("aria-label", `${formatDate(date)}${date === key ? ", выбранная дата" : ""}`);
+    } else {
+      label.textContent = "Вне диапазона";
+      column.classList.add("unavailable");
+    }
+    column.classList.toggle("weekend", index >= 5);
+    column.classList.toggle("active", date === key);
+    heading.append(weekday, label);
+    column.append(heading);
+    weekDaysContainer.append(column);
+  });
+  const valid = dates.filter(Boolean);
+  document.querySelector("#week-range").textContent = `${formatDate(valid[0])} — ${formatDate(valid.at(-1))}`;
+  document.querySelector("#week-selected").textContent = `Выбран день: ${formatDate(key)}`;
+  document.querySelector("#week-boundary").hidden = valid.length === 7;
+}
+
+function openSelectedWeek(key, opener) {
+  if (activeDialog || activeCalendarTool || calendarPlacement || draggedThoughtId || restoreNeedsReload || !weekView.hidden) return;
+  const dates = getSelectedWeek(key);
+  if (!dates.length) return;
+  yearlyReturnContext = { key, opener, left: calendarScroll.scrollLeft, x: window.scrollX, y: window.scrollY };
+  hideEventPreview();
+  clearTodayFocus();
+  hideThoughtUndo();
+  endThoughtDrag();
+  renderSelectedWeek(key, dates);
+  app.hidden = true;
+  app.inert = true;
+  weekView.hidden = false;
+  weekView.inert = false;
+  document.body.classList.add("viewing-week");
+  window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+  document.querySelector("#week-title").focus({ preventScroll: true });
+  const selected = weekDaysContainer.querySelector(".active");
+  const scroller = weekDaysContainer.parentElement;
+  scroller.scrollLeft = selected.offsetLeft - weekDaysContainer.offsetLeft - (scroller.clientWidth - selected.offsetWidth) / 2;
+}
+
+function returnToYear() {
+  if (!yearlyReturnContext || weekView.hidden) return;
+  const context = yearlyReturnContext;
+  weekView.hidden = true;
+  weekView.inert = true;
+  app.hidden = false;
+  app.inert = false;
+  document.body.classList.remove("viewing-week");
+  calendarScroll.scrollLeft = context.left;
+  scheduleDayRings();
+  const target = context.opener.isConnected ? context.opener
+    : calendar.querySelector(`[data-action="open-week"][data-date="${context.key}"]`) || calendarScroll;
+  target.focus({ preventScroll: true });
+  window.scrollTo({ left: context.x, top: context.y, behavior: "instant" });
+  yearlyReturnContext = null;
+}
+
+document.querySelector("#back-to-year").addEventListener("click", returnToYear);
+
 function createDayRow(year, monthIndex, day) {
   const row = document.createElement("div");
   row.className = "calendar-cell";
@@ -2047,8 +2139,12 @@ function createDayRow(year, monthIndex, day) {
   const line = document.createElement("div");
   line.className = "day-line";
 
-  const number = document.createElement("span");
+  const number = document.createElement("button");
+  number.type = "button";
   number.className = "date-number";
+  number.dataset.date = row.dataset.date;
+  number.dataset.action = "open-week";
+  number.setAttribute("aria-label", `Открыть неделю, ${formatDate(row.dataset.date)}`);
   number.textContent = day;
 
   const weekday = document.createElement("button");
@@ -2581,6 +2677,7 @@ document.addEventListener("scroll", (event) => {
 window.addEventListener("resize", () => hideEventPreview());
 
 calendar.addEventListener("click", (event) => {
+  if (app.hidden || draggedThoughtId) return;
   if (suppressThoughtClick && event.detail !== 0) return;
   const cell = event.target.closest(".calendar-cell[data-date]");
   if (calendarPlacement && cell) {
@@ -2595,6 +2692,10 @@ calendar.addEventListener("click", (event) => {
   const button = event.target.closest("button[data-date]");
   if (!button || !calendar.contains(button)) return;
   const key = button.dataset.date;
+  if (button.dataset.action === "open-week") {
+    openSelectedWeek(key, button);
+    return;
+  }
   const count = events[key]?.length || 0;
   if (button.dataset.action === "create-event" || count === 0) openCreationForm(key, button);
   else if (count === 1) openEventCard(key, 0, button);
