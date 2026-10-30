@@ -49,6 +49,13 @@ body.viewing-week { background: #f4f7fb; }
 .weekly-back { min-height: 36px; padding: 0 12px; color: #354258; border: 1px solid #d8e1eb; border-radius: 8px; background: #fff; box-shadow: 0 1px 2px rgba(22,37,56,.03); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
 .weekly-back:hover { border-color: #bbc9d9; background: #fafcff; }
 .weekly-back:focus-visible, .weekly-calendar:focus-visible { outline: 2px solid #315be9; outline-offset: 2px; }
+.weekly-navigation { display: flex; gap: 8px; }
+.weekly-nav-button { display: grid; width: 38px; height: 38px; flex: 0 0 38px; place-items: center; padding: 0; appearance: none; color: #42536b; border: 1px solid #d8e1eb; border-radius: 9px; background: #fff; box-shadow: 0 1px 2px rgba(22,37,56,.03); font-weight: 600; cursor: pointer; }
+.weekly-nav-button svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.9; }
+.weekly-nav-button:hover { border-color: #bbc9d9; background: #fafcff; }
+.weekly-nav-button:focus-visible { outline: 2px solid #315be9; outline-offset: 2px; }
+.weekly-nav-button[aria-disabled="true"] { opacity: .45; cursor: default; }
+.weekly-today { margin-left: auto; }
 .weekly-crumb { display: flex; flex-wrap: wrap; gap: 8px 16px; padding: 8px 2px 10px; color: #718095; font-size: 12px; }
 .weekly-crumb strong { color: #26364c; font-size: 14px; font-weight: 600; }
 .weekly-notice { margin: 0 0 12px; padding: 10px 13px; color: #4a5b77; border: 1px solid #dbe6ff; border-radius: 10px; background: #f1f5ff; font-size: 12px; }

@@ -2039,6 +2039,9 @@ function applyDayState(row, date) {
 
 const weekView = document.querySelector("#week-view");
 const weekDaysContainer = document.querySelector("#week-days");
+const weekNavigationButtons = [...document.querySelectorAll("[data-week-nav]")];
+let displayedWeekDate = null;
+let preferredWeekday = 0;
 let yearlyReturnContext = null;
 
 function getSelectedWeek(key) {
@@ -2054,7 +2057,45 @@ function getSelectedWeek(key) {
   });
 }
 
+function adjacentWeekDate(direction) {
+  if (!displayedWeekDate || ![-1, 1].includes(direction)) return null;
+  const [year, month, day] = displayedWeekDate.split("-").map(Number);
+  const offset = (createLocalDate(year, month - 1, day).getDay() + 6) % 7;
+  const date = createLocalDate(year, month - 1, day - offset + direction * 7 + preferredWeekday);
+  const key = date.getFullYear() < minimumYear ? getDateKey(minimumYear, 0, 1)
+    : date.getFullYear() > maximumYear ? getDateKey(maximumYear, 11, 31)
+    : getDateKey(date.getFullYear(), date.getMonth(), date.getDate());
+  // Clamping retains partial boundary weeks, but cannot navigate beyond them.
+  return getSelectedWeek(key)[0] === getSelectedWeek(displayedWeekDate)[0] ? null : key;
+}
+
+function scrollToSelectedWeekday() {
+  const selected = weekDaysContainer.querySelector(".active");
+  const scroller = weekDaysContainer.parentElement;
+  scroller.scrollLeft = selected.offsetLeft - weekDaysContainer.offsetLeft - (scroller.clientWidth - selected.offsetWidth) / 2;
+}
+
+function navigateWeek(direction) {
+  if (weekView.hidden) return;
+  const key = adjacentWeekDate(direction);
+  if (!key) return;
+  renderSelectedWeek(key, getSelectedWeek(key));
+  scrollToSelectedWeekday();
+}
+
+function goToCurrentWeek() {
+  if (weekView.hidden) return;
+  const now = new Date();
+  const key = getDateKey(now.getFullYear(), now.getMonth(), now.getDate());
+  const dates = getSelectedWeek(key);
+  if (!dates.length) return;
+  preferredWeekday = (now.getDay() + 6) % 7;
+  renderSelectedWeek(key, dates);
+  scrollToSelectedWeekday();
+}
+
 function renderSelectedWeek(key, dates) {
+  displayedWeekDate = key;
   weekDaysContainer.replaceChildren();
   dates.forEach((date, index) => {
     const column = document.createElement("section");
@@ -2086,6 +2127,9 @@ function renderSelectedWeek(key, dates) {
   document.querySelector("#week-range").textContent = `${formatDate(valid[0])} — ${formatDate(valid.at(-1))}`;
   document.querySelector("#week-selected").textContent = `Выбран день: ${formatDate(key)}`;
   document.querySelector("#week-boundary").hidden = valid.length === 7;
+  weekNavigationButtons.forEach((button) => {
+    button.setAttribute("aria-disabled", String(adjacentWeekDate(Number(button.dataset.weekNav)) === null));
+  });
 }
 
 function openSelectedWeek(key, opener) {
@@ -2097,6 +2141,8 @@ function openSelectedWeek(key, opener) {
   clearTodayFocus();
   hideThoughtUndo();
   endThoughtDrag();
+  const [year, month, day] = key.split("-").map(Number);
+  preferredWeekday = (createLocalDate(year, month - 1, day).getDay() + 6) % 7;
   renderSelectedWeek(key, dates);
   app.hidden = true;
   app.inert = true;
@@ -2105,9 +2151,7 @@ function openSelectedWeek(key, opener) {
   document.body.classList.add("viewing-week");
   window.scrollTo({ top: 0, left: 0, behavior: "instant" });
   document.querySelector("#week-title").focus({ preventScroll: true });
-  const selected = weekDaysContainer.querySelector(".active");
-  const scroller = weekDaysContainer.parentElement;
-  scroller.scrollLeft = selected.offsetLeft - weekDaysContainer.offsetLeft - (scroller.clientWidth - selected.offsetWidth) / 2;
+  scrollToSelectedWeekday();
 }
 
 function returnToYear() {
@@ -2128,6 +2172,8 @@ function returnToYear() {
 }
 
 document.querySelector("#back-to-year").addEventListener("click", returnToYear);
+weekNavigationButtons.forEach((button) => button.addEventListener("click", () => navigateWeek(Number(button.dataset.weekNav))));
+document.querySelector("#week-today").addEventListener("click", goToCurrentWeek);
 
 function createDayRow(year, monthIndex, day) {
   const row = document.createElement("div");

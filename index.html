@@ -149,13 +149,22 @@
     <main class="weekly-view" id="week-view" aria-labelledby="week-title" hidden inert>
       <header class="weekly-topbar">
         <h1 id="week-title" tabindex="-1">Недельный календарь</h1>
+        <nav class="weekly-navigation" aria-label="Переход между неделями">
+          <button class="weekly-nav-button" type="button" data-week-nav="-1" aria-label="Предыдущая неделя" aria-disabled="false">
+            <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M10 3.5 6 8l4 4.5" /></svg>
+          </button>
+          <button class="weekly-nav-button" type="button" data-week-nav="1" aria-label="Следующая неделя" aria-disabled="false">
+            <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="m6 3.5 4 4.5-4 4.5" /></svg>
+          </button>
+        </nav>
         <button class="weekly-back" type="button" id="back-to-year">← Годовой календарь</button>
+        <button class="weekly-back weekly-today" type="button" id="week-today">Сегодня</button>
       </header>
       <div class="weekly-crumb">
-        <strong id="week-range"></strong>
+        <strong id="week-range" aria-live="polite" aria-atomic="true"></strong>
         <span id="week-selected"></span>
       </div>
-      <p class="weekly-notice">Пока доступны даты недели и возврат к году. Временная сетка и недельные события ещё не добавлены.</p>
+      <p class="weekly-notice">Можно просматривать недели и вернуться к году. Временная сетка и недельные события ещё не добавлены.</p>
       <p class="weekly-notice" id="week-boundary" hidden>Поддерживаются даты с 0001 по 9999 год. Позиции вне этого диапазона недоступны.</p>
       <section class="weekly-calendar" tabindex="0" aria-label="Даты выбранной недели">
         <div class="weekly-days" id="week-days"></div>
