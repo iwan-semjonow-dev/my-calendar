@@ -2040,9 +2040,135 @@ function applyDayState(row, date) {
 const weekView = document.querySelector("#week-view");
 const weekDaysContainer = document.querySelector("#week-days");
 const weekNavigationButtons = [...document.querySelectorAll("[data-week-nav]")];
+const weekEventDialog = document.querySelector("#week-event-dialog");
+const weekEventForm = document.querySelector("#week-event-form");
+const weekEventError = document.querySelector("#week-event-error");
+const addWeekEventButton = document.querySelector("#add-week-event");
+const weeklyEvents = [];
+const weeklyColours = [
+  ["#4169e1", "Синий"], ["#2999db", "Голубой"], ["#169c93", "Бирюзовый"],
+  ["#39995d", "Зелёный"], ["#819a31", "Оливковый"], ["#c99919", "Жёлтый"],
+  ["#d66f21", "Оранжевый"], ["#df5e45", "Коралловый"], ["#c83d46", "Красный"],
+  ["#d44e87", "Розовый"], ["#9d488c", "Сливовый"], ["#754cb3", "Фиолетовый"],
+  ["#4d55a7", "Индиго"], ["#536f91", "Серо-синий"], ["#8b5a3d", "Коричневый"],
+  ["#687582", "Серый"],
+];
 let displayedWeekDate = null;
 let preferredWeekday = 0;
 let yearlyReturnContext = null;
+
+function formatWeekTime(minutes) {
+  return `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
+}
+
+function parseWeekTime(value, allowEndOfDay = false) {
+  if (allowEndOfDay && value === "24:00") return 1440;
+  if (!/^([01]\d|2[0-3]):[03]0$/.test(value)) return NaN;
+  const [hour, minute] = value.split(":").map(Number);
+  return hour * 60 + minute;
+}
+
+function setWeekEventColour(colour) {
+  weekEventForm.elements.colour.value = colour;
+  weekEventForm.querySelectorAll("[data-week-colour]").forEach((button) => {
+    button.setAttribute("aria-pressed", String(button.dataset.weekColour === colour));
+  });
+}
+
+function openWeekEventForm() {
+  if (weekView.hidden || activeDialog || restoreNeedsReload) return;
+  weekEventForm.reset();
+  weekEventError.hidden = true;
+  const fields = weekEventForm.elements;
+  fields.date.replaceChildren();
+  getSelectedWeek(displayedWeekDate).filter(Boolean).forEach((date) => {
+    fields.date.add(new Option(formatDate(date), date));
+  });
+  fields.date.value = displayedWeekDate;
+  for (const [field, first, last] of [[fields.start, 0, 1410], [fields.end, 30, 1440]]) {
+    field.replaceChildren();
+    for (let minutes = first; minutes <= last; minutes += 30) {
+      const time = formatWeekTime(minutes);
+      field.add(new Option(time, time));
+    }
+  }
+  fields.start.value = "18:00";
+  fields.end.value = "18:30";
+  setWeekEventColour(weeklyColours[0][0]);
+  openDialog(weekEventDialog, addWeekEventButton, fields.title);
+}
+
+function validateWeekEvent(record) {
+  if (!getSelectedWeek(displayedWeekDate).includes(record.date) || !isCalendarDate(record.date)) {
+    return "Выберите действительную дату этой недели.";
+  }
+  if (!record.title) return "Введите название события: одних пробелов недостаточно.";
+  if (record.title.length > 60 || record.description.length > 240) return "Название — до 60 символов, описание — до 240.";
+  if (!Number.isFinite(record.start) || !Number.isFinite(record.end) || record.end <= record.start) {
+    return "Выберите начало и конец с шагом 30 минут. Конец должен быть позже начала, не позднее 24:00.";
+  }
+  if (!weeklyColours.some(([colour]) => colour === record.colour)) return "Выберите цвет события.";
+  const conflict = weeklyEvents.find((event) => event.date === record.date && record.start < event.end && record.end > event.start);
+  return conflict ? `${formatDate(record.date)}: интервал пересекается с «${conflict.title}» (${formatWeekTime(conflict.start)}–${formatWeekTime(conflict.end)}). Выберите другое время.` : "";
+}
+
+function submitWeekEvent(event) {
+  event.preventDefault();
+  if (activeDialog !== weekEventDialog || restoreNeedsReload) return;
+  const fields = weekEventForm.elements;
+  const record = {
+    date: fields.date.value,
+    title: fields.title.value.trim(),
+    start: parseWeekTime(fields.start.value),
+    end: parseWeekTime(fields.end.value, true),
+    colour: fields.colour.value,
+    description: fields.description.value.trim(),
+  };
+  const error = validateWeekEvent(record);
+  weekEventError.textContent = error;
+  weekEventError.hidden = !error;
+  if (error) return;
+  weeklyEvents.push(record);
+  renderWeekEvents();
+  closeDialog();
+}
+
+function renderWeekEvents() {
+  weekDaysContainer.querySelectorAll(".weekly-event").forEach((element) => element.remove());
+  weeklyEvents.forEach((event) => {
+    const column = weekDaysContainer.querySelector(`[data-date="${event.date}"] .weekly-timeline`);
+    if (!column) return;
+    const card = document.createElement("article");
+    card.className = "weekly-event";
+    card.classList.toggle("compact", (event.end - event.start) * 35 / 60 <= 62);
+    card.style.top = `${event.start / 1440 * 100}%`;
+    card.style.height = `${(event.end - event.start) / 1440 * 100}%`;
+    card.style.setProperty("--weekly-event-colour", event.colour);
+    const time = `${formatWeekTime(event.start)}–${formatWeekTime(event.end)}`;
+    card.setAttribute("aria-label", `${event.title}, ${formatDate(event.date)}, ${time}${event.description ? ", " + event.description : ""}`);
+    for (const [className, text] of [["weekly-event-time", time], ["weekly-event-name", event.title], ["weekly-event-note", event.description]]) {
+      const span = document.createElement("span");
+      span.className = className;
+      span.textContent = text;
+      card.append(span);
+    }
+    column.append(card);
+  });
+}
+
+weeklyColours.forEach(([colour, name]) => {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "weekly-colour";
+  button.dataset.weekColour = colour;
+  button.style.setProperty("--weekly-event-colour", colour);
+  button.setAttribute("aria-label", name);
+  button.setAttribute("aria-pressed", String(colour === weeklyColours[0][0]));
+  button.addEventListener("click", () => setWeekEventColour(colour));
+  weekEventForm.querySelector(".weekly-event-colours").append(button);
+});
+addWeekEventButton.addEventListener("click", openWeekEventForm);
+weekEventForm.addEventListener("submit", submitWeekEvent);
 
 function getSelectedWeek(key) {
   if (!isCalendarDate(key)) return [];
@@ -2142,10 +2268,10 @@ function renderSelectedWeek(key, dates) {
     heading.append(weekday, label);
     const timeline = document.createElement("div");
     timeline.className = "weekly-timeline";
-    timeline.setAttribute("aria-hidden", "true");
     column.append(heading, timeline);
     weekDaysContainer.append(column);
   });
+  renderWeekEvents();
   const valid = dates.filter(Boolean);
   document.querySelector("#week-range").textContent = `${formatDate(valid[0])} — ${formatDate(valid.at(-1))}`;
   document.querySelector("#week-selected").textContent = `Выбран день: ${formatDate(key)}`;
@@ -2325,6 +2451,7 @@ function openDialog(dialog, opener, focusTarget) {
   }
   activeDialog = dialog;
   app.inert = true;
+  weekView.inert = true;
   dialog.hidden = false;
   focusTarget.focus({ preventScroll: true });
 }
@@ -2348,7 +2475,8 @@ function closeDialog() {
   }
   if (activeDialog === filtersDialog) filtersButton.setAttribute("aria-expanded", "false");
   activeDialog.hidden = true;
-  app.inert = false;
+  app.inert = app.hidden;
+  weekView.inert = weekView.hidden;
   restoreDialogFocus();
   activeDialog = null;
   dialogOpener = null;
@@ -2903,7 +3031,7 @@ backupFile.addEventListener("change", prepareBackupRestore);
 restoreConfirm.addEventListener("click", confirmBackupRestore);
 document.querySelector("#reload-after-restore").addEventListener("click", () => window.location.reload());
 
-for (const dialog of [creationDialog, cardDialog, listDialog, filtersDialog, thoughtDialog, thoughtDeleteDialog, historyDeleteDialog, settingsDialog, dayEraseDialog, templatesDialog, templateDialog, templateDeleteDialog, templateFutureDialog, restoreDialog]) {
+for (const dialog of [creationDialog, cardDialog, listDialog, filtersDialog, thoughtDialog, thoughtDeleteDialog, historyDeleteDialog, settingsDialog, dayEraseDialog, templatesDialog, templateDialog, templateDeleteDialog, templateFutureDialog, restoreDialog, weekEventDialog]) {
   dialog.addEventListener("click", (event) => {
     if (event.target === dialog || event.target.closest("[data-close-dialog]")) dismissDialog();
     else if (event.target.closest("[data-back-to-list]")) returnToDayList();

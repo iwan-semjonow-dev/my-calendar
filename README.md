@@ -12,7 +12,7 @@ The calendar has twelve equally sized vertical month columns, with valid dates a
 
 The grid fills the available panel width on wide screens. Narrower windows use horizontal scrolling inside the calendar, keeping all twelve months in one row. Compact, Standard, and Large scales change text size and the widths of the date number and weekday areas; row height stays the same. Scale changes can be previewed, cancelled, or saved.
 
-Select a day number to open the Monday-to-Sunday week containing that exact date, including its year. Use the previous and next arrows to move by one week, or Today (**Сегодня**) to select the current local date and its week. The selected day moves with the week, retaining its weekday where possible; at the supported date boundary, the nearest valid day is selected. The weekly view includes a local-time grid from 00:00 to 24:00, with 30-minute divisions and hourly labels. Day headings stay visible during vertical scrolling; the time scale stays visible during horizontal scrolling inside the panel. Weekly events are not implemented yet. The return button (**← Годовой календарь**) restores the original yearly view, scroll position, and focus even after browsing other weeks. Dates beyond the supported years 0001–9999 are shown as unavailable, and navigation stops at the boundary weeks. While marking days or selecting dates for a batch, day numbers continue to act on that mode instead of opening a week. Weekly navigation does not change saved data or the scope of yearly backups.
+Select a day number to open the Monday-to-Sunday week containing that exact date, including its year. Use the previous and next arrows to move by one week, or Today (**Сегодня**) to select the current local date and its week. The selected day moves with the week, retaining its weekday where possible; at the supported date boundary, the nearest valid day is selected. The weekly view includes a local-time grid from 00:00 to 24:00, with 30-minute divisions and hourly labels. Day headings stay visible during vertical scrolling; the time scale stays visible during horizontal scrolling inside the panel. Use Add event (**＋ Добавить событие**) to create an event on a valid date in the displayed week, with a title, colour, optional description, and start and end times in 30-minute steps. Events must end later than they start, at or before 24:00; overlapping intervals on the same date are rejected, while touching intervals are allowed. Weekly events stay in memory while browsing weeks and switching views, but are lost on reload. They are separate from yearly events and are not included in yearly backups. Editing, deleting, and creating weekly events by clicking the grid are not available yet. The return button (**← Годовой календарь**) restores the original yearly view, scroll position, and focus even after browsing other weeks. Dates beyond the supported years 0001–9999 are shown as unavailable, and navigation stops at the boundary weeks. While marking days or selecting dates for a batch, day numbers continue to act on that mode instead of opening a week. Weekly navigation does not change saved data or the scope of yearly backups.
 
 ### Events and daily details
 
@@ -48,13 +48,14 @@ Manually add an event to the chronological history strip as an independent snaps
 
 | Data | Storage | After a page reload |
 |---|---|---|
-| Events, including template links | localStorage | Retained after a successful save |
+| Yearly events, including template links | localStorage | Retained after a successful save |
 | History snapshots | localStorage | Retained after a successful save |
 | Undated thoughts and their order | localStorage | Retained after a successful save |
 | Scheduled thoughts and their source identity | localStorage | Retained after a successful save |
 | Day fills and outlines | localStorage | Retained after a successful save |
 | Event templates | localStorage | Retained after a successful save |
 | Yearly scale setting | localStorage | Retained after a successful save |
+| Weekly events | In memory | Lost |
 | Filter selection | In memory | Reset |
 | Displayed year | In memory | Current system year opens again |
 | Unsaved form edits and unconfirmed date or event selections | In memory | Discarded |

@@ -85,6 +85,23 @@ body.viewing-week { background: #f4f7fb; }
 .weekly-timeline { background-image: repeating-linear-gradient(to bottom, transparent 0, transparent calc(var(--week-hour-height) - 1px), #bedaca calc(var(--week-hour-height) - 1px), #bedaca var(--week-hour-height)), repeating-linear-gradient(to bottom, transparent 0, transparent calc(var(--week-time-step) - 1px), #d3e8dc calc(var(--week-time-step) - 1px), #d3e8dc var(--week-time-step)); }
 .weekly-day.active .weekly-timeline { background-color: color-mix(in srgb, #edf7f1 78%, white); }
 
+.weekly-event-dialog { width: min(520px, calc(100vw - 40px)); border-color: #dbe3ed; border-radius: 16px; box-shadow: 0 26px 84px rgba(20,32,52,.28); }
+.weekly-event-times { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 11px; }
+.weekly-event-colours { display: grid; grid-template-columns: repeat(8, 26px); gap: 9px; padding: 4px; }
+.weekly-colour { width: 26px; height: 26px; padding: 0; border: 2px solid transparent; border-radius: 50%; background: var(--weekly-event-colour); cursor: pointer; }
+.weekly-colour[aria-pressed="true"] { border-color: #fff; box-shadow: 0 0 0 2px var(--weekly-event-colour), 0 0 0 4px #33445d; }
+.weekly-colour:focus-visible, #add-week-event:focus-visible { outline: 2px solid #315be9; outline-offset: 4px; }
+.weekly-event-error { margin: 0; padding: 10px 12px; color: #9e3440; border: 1px solid #efc7cc; border-radius: 9px; background: #fff5f6; font-size: 11px; line-height: 1.45; }
+.weekly-event { position: absolute; right: 8px; left: 8px; overflow: hidden; padding: 8px 9px; border: 1px solid color-mix(in srgb, var(--weekly-event-colour) 48%, white); border-radius: 9px; background: color-mix(in srgb, var(--weekly-event-colour) 24%, white); color: #273344; box-shadow: 0 3px 8px rgba(39,55,76,.08); }
+.weekly-event-time, .weekly-event-name, .weekly-event-note { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.weekly-event-time { font-size: 10px; line-height: 1.15; }
+.weekly-event-name { font-size: 12px; font-weight: 600; line-height: 1.1; }
+.weekly-event-note { margin-top: 3px; font-size: 10px; line-height: 1.25; }
+.weekly-event.compact { display: flex; align-items: center; gap: 3px; padding: 0 6px; box-shadow: none; }
+.weekly-event.compact .weekly-event-time { flex: 0 0 auto; font-size: 8px; }
+.weekly-event.compact .weekly-event-name { min-width: 0; font-size: 10px; }
+.weekly-event.compact .weekly-event-note { display: none; }
+
 .app-header {
   padding: 20px 0;
   border-bottom: 1px solid #dde2e8;
