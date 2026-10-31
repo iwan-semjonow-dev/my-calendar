@@ -2094,9 +2094,28 @@ function goToCurrentWeek() {
   scrollToSelectedWeekday();
 }
 
+function createWeekTimeScale() {
+  const scale = document.createElement("div");
+  scale.className = "weekly-time-scale";
+  const corner = document.createElement("div");
+  corner.className = "weekly-time-corner";
+  corner.textContent = "Время";
+  const labels = document.createElement("div");
+  labels.className = "weekly-time-labels";
+  for (let hour = 0; hour <= 24; hour += 1) {
+    const label = document.createElement("span");
+    label.className = "weekly-time-label";
+    label.style.top = `${hour / 24 * 100}%`;
+    label.textContent = `${String(hour).padStart(2, "0")}:00`;
+    labels.append(label);
+  }
+  scale.append(corner, labels);
+  return scale;
+}
+
 function renderSelectedWeek(key, dates) {
   displayedWeekDate = key;
-  weekDaysContainer.replaceChildren();
+  weekDaysContainer.replaceChildren(createWeekTimeScale());
   dates.forEach((date, index) => {
     const column = document.createElement("section");
     column.className = "weekly-day";
@@ -2116,11 +2135,15 @@ function renderSelectedWeek(key, dates) {
     } else {
       label.textContent = "Вне диапазона";
       column.classList.add("unavailable");
+      column.setAttribute("aria-disabled", "true");
     }
     column.classList.toggle("weekend", index >= 5);
     column.classList.toggle("active", date === key);
     heading.append(weekday, label);
-    column.append(heading);
+    const timeline = document.createElement("div");
+    timeline.className = "weekly-timeline";
+    timeline.setAttribute("aria-hidden", "true");
+    column.append(heading, timeline);
     weekDaysContainer.append(column);
   });
   const valid = dates.filter(Boolean);
@@ -2152,6 +2175,7 @@ function openSelectedWeek(key, opener) {
   window.scrollTo({ top: 0, left: 0, behavior: "instant" });
   document.querySelector("#week-title").focus({ preventScroll: true });
   scrollToSelectedWeekday();
+  weekDaysContainer.parentElement.scrollTop = 0;
 }
 
 function returnToYear() {
