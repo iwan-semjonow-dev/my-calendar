@@ -2045,6 +2045,8 @@ const weekEventForm = document.querySelector("#week-event-form");
 const weekEventError = document.querySelector("#week-event-error");
 const addWeekEventButton = document.querySelector("#add-week-event");
 const weeklyEvents = [];
+const weekEventElements = new WeakMap();
+let editingWeekEvent = null;
 const weeklyColours = [
   ["#4169e1", "Синий"], ["#2999db", "Голубой"], ["#169c93", "Бирюзовый"],
   ["#39995d", "Зелёный"], ["#819a31", "Оливковый"], ["#c99919", "Жёлтый"],
@@ -2075,16 +2077,21 @@ function setWeekEventColour(colour) {
   });
 }
 
-function openWeekEventForm() {
+function openWeekEventForm(eventToEdit = null, opener = addWeekEventButton) {
   if (weekView.hidden || activeDialog || restoreNeedsReload) return;
+  if (eventToEdit && !weeklyEvents.includes(eventToEdit)) return;
+  editingWeekEvent = eventToEdit;
   weekEventForm.reset();
   weekEventError.hidden = true;
+  weekEventError.textContent = "";
+  document.querySelector("#week-event-title").textContent = eventToEdit ? "Редактировать событие" : "Новое событие";
+  weekEventForm.querySelector('[type="submit"]').textContent = eventToEdit ? "Сохранить изменения" : "Сохранить событие";
   const fields = weekEventForm.elements;
   fields.date.replaceChildren();
   getSelectedWeek(displayedWeekDate).filter(Boolean).forEach((date) => {
     fields.date.add(new Option(formatDate(date), date));
   });
-  fields.date.value = displayedWeekDate;
+  fields.date.value = eventToEdit?.date || displayedWeekDate;
   for (const [field, first, last] of [[fields.start, 0, 1410], [fields.end, 30, 1440]]) {
     field.replaceChildren();
     for (let minutes = first; minutes <= last; minutes += 30) {
@@ -2092,13 +2099,15 @@ function openWeekEventForm() {
       field.add(new Option(time, time));
     }
   }
-  fields.start.value = "18:00";
-  fields.end.value = "18:30";
-  setWeekEventColour(weeklyColours[0][0]);
-  openDialog(weekEventDialog, addWeekEventButton, fields.title);
+  fields.title.value = eventToEdit?.title || "";
+  fields.description.value = eventToEdit?.description || "";
+  fields.start.value = eventToEdit ? formatWeekTime(eventToEdit.start) : "18:00";
+  fields.end.value = eventToEdit ? formatWeekTime(eventToEdit.end) : "18:30";
+  setWeekEventColour(eventToEdit?.colour || weeklyColours[0][0]);
+  openDialog(weekEventDialog, opener, fields.title);
 }
 
-function validateWeekEvent(record) {
+function validateWeekEvent(record, ignoredEvent = null) {
   if (!getSelectedWeek(displayedWeekDate).includes(record.date) || !isCalendarDate(record.date)) {
     return "Выберите действительную дату этой недели.";
   }
@@ -2108,7 +2117,7 @@ function validateWeekEvent(record) {
     return "Выберите начало и конец с шагом 30 минут. Конец должен быть позже начала, не позднее 24:00.";
   }
   if (!weeklyColours.some(([colour]) => colour === record.colour)) return "Выберите цвет события.";
-  const conflict = weeklyEvents.find((event) => event.date === record.date && record.start < event.end && record.end > event.start);
+  const conflict = weeklyEvents.find((event) => event !== ignoredEvent && event.date === record.date && record.start < event.end && record.end > event.start);
   return conflict ? `${formatDate(record.date)}: интервал пересекается с «${conflict.title}» (${formatWeekTime(conflict.start)}–${formatWeekTime(conflict.end)}). Выберите другое время.` : "";
 }
 
@@ -2124,13 +2133,18 @@ function submitWeekEvent(event) {
     colour: fields.colour.value,
     description: fields.description.value.trim(),
   };
-  const error = validateWeekEvent(record);
+  const error = validateWeekEvent(record, editingWeekEvent);
   weekEventError.textContent = error;
   weekEventError.hidden = !error;
   if (error) return;
-  weeklyEvents.push(record);
+  const editedEvent = editingWeekEvent;
+  if (editedEvent) Object.assign(editedEvent, record);
+  else weeklyEvents.push(record);
   renderWeekEvents();
+  const updatedButton = editedEvent ? weekEventElements.get(editedEvent) : null;
+  if (updatedButton) dialogOpener = updatedButton;
   closeDialog();
+  updatedButton?.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "instant" });
 }
 
 function renderWeekEvents() {
@@ -2138,20 +2152,24 @@ function renderWeekEvents() {
   weeklyEvents.forEach((event) => {
     const column = weekDaysContainer.querySelector(`[data-date="${event.date}"] .weekly-timeline`);
     if (!column) return;
-    const card = document.createElement("article");
+    const card = document.createElement("button");
+    card.type = "button";
+    card.setAttribute("aria-haspopup", "dialog");
     card.className = "weekly-event";
     card.classList.toggle("compact", (event.end - event.start) * 35 / 60 <= 62);
     card.style.top = `${event.start / 1440 * 100}%`;
     card.style.height = `${(event.end - event.start) / 1440 * 100}%`;
     card.style.setProperty("--weekly-event-colour", event.colour);
     const time = `${formatWeekTime(event.start)}–${formatWeekTime(event.end)}`;
-    card.setAttribute("aria-label", `${event.title}, ${formatDate(event.date)}, ${time}${event.description ? ", " + event.description : ""}`);
+    card.setAttribute("aria-label", `Редактировать: ${event.title}, ${formatDate(event.date)}, ${time}${event.description ? ", " + event.description : ""}`);
     for (const [className, text] of [["weekly-event-time", time], ["weekly-event-name", event.title], ["weekly-event-note", event.description]]) {
       const span = document.createElement("span");
       span.className = className;
       span.textContent = text;
       card.append(span);
     }
+    card.addEventListener("click", () => openWeekEventForm(event, card));
+    weekEventElements.set(event, card);
     column.append(card);
   });
 }
@@ -2167,7 +2185,7 @@ weeklyColours.forEach(([colour, name]) => {
   button.addEventListener("click", () => setWeekEventColour(colour));
   weekEventForm.querySelector(".weekly-event-colours").append(button);
 });
-addWeekEventButton.addEventListener("click", openWeekEventForm);
+addWeekEventButton.addEventListener("click", () => openWeekEventForm());
 weekEventForm.addEventListener("submit", submitWeekEvent);
 
 function getSelectedWeek(key) {
@@ -2479,6 +2497,7 @@ function closeDialog() {
   weekView.inert = weekView.hidden;
   restoreDialogFocus();
   activeDialog = null;
+  editingWeekEvent = null;
   dialogOpener = null;
   dialogOpenerDate = null;
   creationDate = null;

@@ -101,6 +101,8 @@ body.viewing-week { background: #f4f7fb; }
 .weekly-event.compact .weekly-event-time { flex: 0 0 auto; font-size: 8px; }
 .weekly-event.compact .weekly-event-name { min-width: 0; font-size: 10px; }
 .weekly-event.compact .weekly-event-note { display: none; }
+.weekly-event { appearance: none; min-height: 0; margin: 0; font: inherit; text-align: left; cursor: pointer; scroll-margin-top: 72px; scroll-margin-left: 76px; }
+.weekly-event:focus-visible { outline: 2px solid #315be9; outline-offset: -2px; }
 
 .app-header {
   padding: 20px 0;
