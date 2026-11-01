@@ -103,6 +103,11 @@ body.viewing-week { background: #f4f7fb; }
 .weekly-event.compact .weekly-event-note { display: none; }
 .weekly-event { appearance: none; min-height: 0; margin: 0; font: inherit; text-align: left; cursor: pointer; scroll-margin-top: 72px; scroll-margin-left: 76px; }
 .weekly-event:focus-visible { outline: 2px solid #315be9; outline-offset: -2px; }
+.day-secondary.weekly-delete { color: #a43d49; border-color: #edcfd3; background: #fff; }
+.day-secondary.weekly-delete:hover { border-color: #dfafb6; background: #fff7f7; }
+#delete-week-event { margin-right: auto; }
+#delete-week-event[hidden] { display: none; }
+#week-delete-copy { white-space: pre-wrap; overflow-wrap: anywhere; }
 
 .app-header {
   padding: 20px 0;

@@ -193,10 +193,26 @@
           <label class="yearly-field">Описание<textarea name="description" maxlength="240" placeholder="Необязательно"></textarea></label>
           <p class="weekly-event-error" id="week-event-error" role="alert" hidden></p>
           <footer class="day-dialog-footer">
+            <button class="day-secondary weekly-delete" id="delete-week-event" type="button" hidden>Удалить</button>
             <button class="day-secondary" type="button" data-close-dialog>Отмена</button>
             <button class="day-primary" type="submit">Сохранить событие</button>
           </footer>
         </form>
+      </section>
+    </div>
+    <div class="day-backdrop" id="week-delete-dialog" role="dialog" aria-modal="true" aria-labelledby="week-delete-title" aria-describedby="week-delete-copy" hidden>
+      <section class="day-dialog weekly-event-dialog">
+        <header class="day-dialog-header">
+          <h2 id="week-delete-title">Удалить событие?</h2>
+          <button class="settings-close" type="button" data-close-dialog aria-label="Закрыть подтверждение">
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 6 18 18M18 6 6 18" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="2.2" /></svg>
+          </button>
+        </header>
+        <p class="day-dialog-help" id="week-delete-copy"></p>
+        <footer class="day-dialog-footer">
+          <button class="day-secondary" id="cancel-week-delete" type="button" data-close-dialog>Отмена</button>
+          <button class="day-secondary weekly-delete" id="confirm-week-delete" type="button">Удалить</button>
+        </footer>
       </section>
     </div>
     <div class="day-backdrop settings-backdrop" id="year-settings" role="dialog" aria-modal="true" aria-labelledby="year-settings-title" hidden>

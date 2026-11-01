@@ -2047,6 +2047,9 @@ const addWeekEventButton = document.querySelector("#add-week-event");
 const weeklyEvents = [];
 const weekEventElements = new WeakMap();
 let editingWeekEvent = null;
+const deleteWeekEventButton = document.querySelector("#delete-week-event");
+const weekDeleteDialog = document.querySelector("#week-delete-dialog");
+let pendingWeekDeletion = null;
 const weeklyColours = [
   ["#4169e1", "Синий"], ["#2999db", "Голубой"], ["#169c93", "Бирюзовый"],
   ["#39995d", "Зелёный"], ["#819a31", "Оливковый"], ["#c99919", "Жёлтый"],
@@ -2081,6 +2084,8 @@ function openWeekEventForm(eventToEdit = null, opener = addWeekEventButton) {
   if (weekView.hidden || activeDialog || restoreNeedsReload) return;
   if (eventToEdit && !weeklyEvents.includes(eventToEdit)) return;
   editingWeekEvent = eventToEdit;
+  pendingWeekDeletion = null;
+  deleteWeekEventButton.hidden = !eventToEdit;
   weekEventForm.reset();
   weekEventError.hidden = true;
   weekEventError.textContent = "";
@@ -2146,6 +2151,44 @@ function submitWeekEvent(event) {
   closeDialog();
   updatedButton?.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "instant" });
 }
+
+function requestWeekDeletion() {
+  if (activeDialog !== weekEventDialog || !weeklyEvents.includes(editingWeekEvent)) return;
+  pendingWeekDeletion = editingWeekEvent;
+  document.querySelector("#week-delete-copy").textContent = `«${pendingWeekDeletion.title}»\n${formatDate(pendingWeekDeletion.date)}\n${formatWeekTime(pendingWeekDeletion.start)}–${formatWeekTime(pendingWeekDeletion.end)}`;
+  openDialog(weekDeleteDialog, null, document.querySelector("#cancel-week-delete"));
+}
+
+function cancelWeekDeletion() {
+  pendingWeekDeletion = null;
+  openDialog(weekEventDialog, null, deleteWeekEventButton);
+}
+
+function confirmWeekDeletion() {
+  if (activeDialog !== weekDeleteDialog || !pendingWeekDeletion || restoreNeedsReload) return;
+  const event = pendingWeekDeletion;
+  pendingWeekDeletion = null;
+  const index = weeklyEvents.indexOf(event);
+  if (index < 0) {
+    dialogOpener = addWeekEventButton;
+    closeDialog();
+    return;
+  }
+  const visibleEvents = weeklyEvents.filter((item) => weekEventElements.get(item)?.isConnected)
+    .sort((a, b) => a.date.localeCompare(b.date) || a.start - b.start);
+  const position = visibleEvents.indexOf(event);
+  const neighbour = visibleEvents[position + 1] || visibleEvents[position - 1];
+  weeklyEvents.splice(index, 1);
+  weekEventElements.delete(event);
+  renderWeekEvents();
+  const focusTarget = weekEventElements.get(neighbour) || addWeekEventButton;
+  dialogOpener = focusTarget;
+  closeDialog();
+  focusTarget.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "instant" });
+}
+
+deleteWeekEventButton.addEventListener("click", requestWeekDeletion);
+document.querySelector("#confirm-week-delete").addEventListener("click", confirmWeekDeletion);
 
 function renderWeekEvents() {
   weekDaysContainer.querySelectorAll(".weekly-event").forEach((element) => element.remove());
@@ -2498,6 +2541,7 @@ function closeDialog() {
   restoreDialogFocus();
   activeDialog = null;
   editingWeekEvent = null;
+  pendingWeekDeletion = null;
   dialogOpener = null;
   dialogOpenerDate = null;
   creationDate = null;
@@ -2646,6 +2690,7 @@ function dismissDialog() {
   else if (activeDialog === templateDialog) showTemplateLibrary(activeTemplateId);
   else if (activeDialog === templateDeleteDialog) openDialog(templateDialog, null, templateDeleteButton);
   else if (activeDialog === thoughtDeleteDialog) cancelThoughtDeletion();
+  else if (activeDialog === weekDeleteDialog) cancelWeekDeletion();
   else if (activeDialog === creationDialog && editingEvent) cancelEditing();
   else if (activeDialog === cardDialog && pendingDeletion) cancelDeletion();
   else closeDialog();
@@ -3050,7 +3095,7 @@ backupFile.addEventListener("change", prepareBackupRestore);
 restoreConfirm.addEventListener("click", confirmBackupRestore);
 document.querySelector("#reload-after-restore").addEventListener("click", () => window.location.reload());
 
-for (const dialog of [creationDialog, cardDialog, listDialog, filtersDialog, thoughtDialog, thoughtDeleteDialog, historyDeleteDialog, settingsDialog, dayEraseDialog, templatesDialog, templateDialog, templateDeleteDialog, templateFutureDialog, restoreDialog, weekEventDialog]) {
+for (const dialog of [creationDialog, cardDialog, listDialog, filtersDialog, thoughtDialog, thoughtDeleteDialog, historyDeleteDialog, settingsDialog, dayEraseDialog, templatesDialog, templateDialog, templateDeleteDialog, templateFutureDialog, restoreDialog, weekEventDialog, weekDeleteDialog]) {
   dialog.addEventListener("click", (event) => {
     if (event.target === dialog || event.target.closest("[data-close-dialog]")) dismissDialog();
     else if (event.target.closest("[data-back-to-list]")) returnToDayList();
