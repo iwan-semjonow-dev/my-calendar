@@ -2080,7 +2080,7 @@ function setWeekEventColour(colour) {
   });
 }
 
-function openWeekEventForm(eventToEdit = null, opener = addWeekEventButton) {
+function openWeekEventForm(eventToEdit = null, opener = addWeekEventButton, initialSlot = null) {
   if (weekView.hidden || activeDialog || restoreNeedsReload) return;
   if (eventToEdit && !weeklyEvents.includes(eventToEdit)) return;
   editingWeekEvent = eventToEdit;
@@ -2096,7 +2096,7 @@ function openWeekEventForm(eventToEdit = null, opener = addWeekEventButton) {
   getSelectedWeek(displayedWeekDate).filter(Boolean).forEach((date) => {
     fields.date.add(new Option(formatDate(date), date));
   });
-  fields.date.value = eventToEdit?.date || displayedWeekDate;
+  fields.date.value = eventToEdit?.date || initialSlot?.date || displayedWeekDate;
   for (const [field, first, last] of [[fields.start, 0, 1410], [fields.end, 30, 1440]]) {
     field.replaceChildren();
     for (let minutes = first; minutes <= last; minutes += 30) {
@@ -2106,8 +2106,8 @@ function openWeekEventForm(eventToEdit = null, opener = addWeekEventButton) {
   }
   fields.title.value = eventToEdit?.title || "";
   fields.description.value = eventToEdit?.description || "";
-  fields.start.value = eventToEdit ? formatWeekTime(eventToEdit.start) : "18:00";
-  fields.end.value = eventToEdit ? formatWeekTime(eventToEdit.end) : "18:30";
+  fields.start.value = formatWeekTime(eventToEdit?.start ?? initialSlot?.start ?? 1080);
+  fields.end.value = formatWeekTime(eventToEdit?.end ?? initialSlot?.end ?? 1110);
   setWeekEventColour(eventToEdit?.colour || weeklyColours[0][0]);
   openDialog(weekEventDialog, opener, fields.title);
 }
@@ -2229,6 +2229,18 @@ weeklyColours.forEach(([colour, name]) => {
   weekEventForm.querySelector(".weekly-event-colours").append(button);
 });
 addWeekEventButton.addEventListener("click", () => openWeekEventForm());
+weekDaysContainer.addEventListener("click", (event) => {
+  // Only the empty timeline accepts creation; event text, headers and the scale do not.
+  if (!event.target.matches(".weekly-timeline") || event.button !== 0) return;
+  const date = event.target.closest(".weekly-day").dataset.date;
+  if (!isCalendarDate(date) || !getSelectedWeek(displayedWeekDate).includes(date)) return;
+  const bounds = event.target.getBoundingClientRect();
+  const offset = event.clientY - bounds.top;
+  if (bounds.height <= 0 || offset < 0 || offset >= bounds.height) return;
+  const step = 30;
+  const start = Math.min(1440 - step, Math.floor(offset / (bounds.height * step / 1440)) * step);
+  openWeekEventForm(null, weekDaysContainer.parentElement, { date, start, end: start + step });
+});
 weekEventForm.addEventListener("submit", submitWeekEvent);
 
 function getSelectedWeek(key) {
