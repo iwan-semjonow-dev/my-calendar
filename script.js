@@ -2044,7 +2044,12 @@ const weekEventDialog = document.querySelector("#week-event-dialog");
 const weekEventForm = document.querySelector("#week-event-form");
 const weekEventError = document.querySelector("#week-event-error");
 const addWeekEventButton = document.querySelector("#add-week-event");
-const weeklyEvents = [];
+let weeklyEvents = [];
+const weeklyEventStorageKey = "my-calendar-week-created-events-v1";
+const weekLoadError = document.querySelector("#week-load-error");
+const weekDeleteError = document.querySelector("#week-delete-error");
+let weeklyStorageSnapshot = null;
+let weeklyStorageBlocked = false;
 const weekEventElements = new WeakMap();
 let editingWeekEvent = null;
 const deleteWeekEventButton = document.querySelector("#delete-week-event");
@@ -2061,6 +2066,68 @@ const weeklyColours = [
 let displayedWeekDate = null;
 let preferredWeekday = 0;
 let yearlyReturnContext = null;
+
+function weeklyDayKey(date) {
+  const [year, month, day] = date.split("-").map(Number);
+  return ["sun", "mon", "tue", "wed", "thu", "fri", "sat"][createLocalDate(year, month - 1, day).getDay()];
+}
+
+function parseWeeklyEvents(raw) {
+  if (raw === null) return [];
+  const records = JSON.parse(raw);
+  if (!Array.isArray(records)) throw new Error("Invalid weekly collection");
+  const ids = new Set();
+  for (const record of records) {
+    if (!record || typeof record !== "object" || Array.isArray(record)
+      || typeof record.id !== "string" || !record.id.trim() || ids.has(record.id)
+      || !isCalendarDate(record.date) || record.date < "0001-01-01" || record.date > "9999-12-31"
+      || (record.day !== undefined && record.day !== weeklyDayKey(record.date))
+      || !Number.isInteger(record.start) || !Number.isInteger(record.end)
+      || record.start < 0 || record.end > 1440 || record.end <= record.start
+      || typeof record.title !== "string" || !record.title.trim()
+      || (record.description !== undefined && typeof record.description !== "string")
+      || (record.category !== undefined && typeof record.category !== "string")
+      || typeof record.colour !== "string" || !/^#[0-9a-f]{6}$/i.test(record.colour)) {
+      throw new Error("Unsupported weekly record");
+    }
+    ids.add(record.id);
+  }
+  // Retain complete records, including fields unknown to this version.
+  return records;
+}
+
+function loadWeeklyEvents() {
+  try {
+    weeklyStorageSnapshot = localStorage.getItem(weeklyEventStorageKey);
+    weeklyEvents = parseWeeklyEvents(weeklyStorageSnapshot);
+  } catch {
+    weeklyStorageBlocked = true;
+    showEventStorageError(weekLoadError, "Не удалось загрузить недельные события: хранилище недоступно или данные повреждены либо не поддерживаются. Каждой записи нужна полная дата, одного дня недели недостаточно. Исходные данные не изменены; запись заблокирована. После восстановления данных или доступа перезагрузите страницу.");
+  }
+}
+
+function saveWeeklyEvents(nextEvents, errorElement) {
+  if (restoreNeedsReload) return false;
+  if (weeklyStorageBlocked) {
+    showEventStorageError(errorElement, weekLoadError.textContent);
+    return false;
+  }
+  try {
+    if (localStorage.getItem(weeklyEventStorageKey) !== weeklyStorageSnapshot) {
+      showEventStorageError(errorElement, "Недельные события изменились в другой вкладке после загрузки страницы. Запись остановлена. Скопируйте черновик и перезагрузите страницу, чтобы работать с актуальными данными.");
+      return false;
+    }
+    const serialized = JSON.stringify(nextEvents);
+    localStorage.setItem(weeklyEventStorageKey, serialized);
+    weeklyStorageSnapshot = serialized;
+    weeklyEvents = nextEvents;
+  } catch {
+    showEventStorageError(errorElement, "Не удалось сохранить недельные события. Записи и черновик не изменены. Проверьте доступ к хранилищу и свободное место; повторите попытку или отмените действие.");
+    return false;
+  }
+  showEventStorageError(errorElement);
+  return true;
+}
 
 function formatWeekTime(minutes) {
   return `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
@@ -2092,6 +2159,14 @@ function openWeekEventForm(eventToEdit = null, opener = addWeekEventButton, init
   document.querySelector("#week-event-title").textContent = eventToEdit ? "Редактировать событие" : "Новое событие";
   weekEventForm.querySelector('[type="submit"]').textContent = eventToEdit ? "Сохранить изменения" : "Сохранить событие";
   const fields = weekEventForm.elements;
+  // A saved multiline title must not pass through a single-line input.
+  const titleField = document.createElement(eventToEdit?.title.includes("\n") || eventToEdit?.title.includes("\r") ? "textarea" : "input");
+  titleField.name = "title";
+  titleField.required = true;
+  titleField.placeholder = fields.title.placeholder;
+  titleField.maxLength = Math.max(60, eventToEdit?.title.length || 0);
+  fields.title.replaceWith(titleField);
+  fields.description.maxLength = Math.max(240, eventToEdit?.description?.length || 0);
   fields.date.replaceChildren();
   getSelectedWeek(displayedWeekDate).filter(Boolean).forEach((date) => {
     fields.date.add(new Option(formatDate(date), date));
@@ -2102,6 +2177,11 @@ function openWeekEventForm(eventToEdit = null, opener = addWeekEventButton, init
     for (let minutes = first; minutes <= last; minutes += 30) {
       const time = formatWeekTime(minutes);
       field.add(new Option(time, time));
+    }
+    const savedTime = eventToEdit?.[field.name];
+    if (savedTime !== undefined && savedTime % 30 !== 0) {
+      const time = formatWeekTime(savedTime);
+      field.add(new Option(`${time} · сохранённое время`, time));
     }
   }
   fields.title.value = eventToEdit?.title || "";
@@ -2117,11 +2197,12 @@ function validateWeekEvent(record, ignoredEvent = null) {
     return "Выберите действительную дату этой недели.";
   }
   if (!record.title) return "Введите название события: одних пробелов недостаточно.";
-  if (record.title.length > 60 || record.description.length > 240) return "Название — до 60 символов, описание — до 240.";
+  if (record.title.length > Math.max(60, ignoredEvent?.title.length || 0)
+    || record.description.length > Math.max(240, ignoredEvent?.description?.length || 0)) return "Название — до 60 символов, описание — до 240; длинные сохранённые значения можно сохранить без сокращения.";
   if (!Number.isFinite(record.start) || !Number.isFinite(record.end) || record.end <= record.start) {
     return "Выберите начало и конец с шагом 30 минут. Конец должен быть позже начала, не позднее 24:00.";
   }
-  if (!weeklyColours.some(([colour]) => colour === record.colour)) return "Выберите цвет события.";
+  if (!weeklyColours.some(([colour]) => colour === record.colour) && record.colour !== ignoredEvent?.colour) return "Выберите цвет события.";
   const conflict = weeklyEvents.find((event) => event !== ignoredEvent && event.date === record.date && record.start < event.end && record.end > event.start);
   return conflict ? `${formatDate(record.date)}: интервал пересекается с «${conflict.title}» (${formatWeekTime(conflict.start)}–${formatWeekTime(conflict.end)}). Выберите другое время.` : "";
 }
@@ -2133,8 +2214,8 @@ function submitWeekEvent(event) {
   const record = {
     date: fields.date.value,
     title: fields.title.value.trim(),
-    start: parseWeekTime(fields.start.value),
-    end: parseWeekTime(fields.end.value, true),
+    start: editingWeekEvent && fields.start.value === formatWeekTime(editingWeekEvent.start) ? editingWeekEvent.start : parseWeekTime(fields.start.value),
+    end: editingWeekEvent && fields.end.value === formatWeekTime(editingWeekEvent.end) ? editingWeekEvent.end : parseWeekTime(fields.end.value, true),
     colour: fields.colour.value,
     description: fields.description.value.trim(),
   };
@@ -2143,10 +2224,16 @@ function submitWeekEvent(event) {
   weekEventError.hidden = !error;
   if (error) return;
   const editedEvent = editingWeekEvent;
-  if (editedEvent) Object.assign(editedEvent, record);
-  else weeklyEvents.push(record);
+  const updatedEvent = editedEvent
+    ? { ...editedEvent, ...record }
+    : { id: `created-${crypto.randomUUID()}`, ...record };
+  if (!editedEvent || Object.hasOwn(editedEvent, "day")) updatedEvent.day = weeklyDayKey(record.date);
+  const nextEvents = editedEvent
+    ? weeklyEvents.map((item) => item === editedEvent ? updatedEvent : item)
+    : [...weeklyEvents, updatedEvent];
+  if (!saveWeeklyEvents(nextEvents, weekEventError)) return;
   renderWeekEvents();
-  const updatedButton = editedEvent ? weekEventElements.get(editedEvent) : null;
+  const updatedButton = editedEvent ? weekEventElements.get(updatedEvent) : null;
   if (updatedButton) dialogOpener = updatedButton;
   closeDialog();
   updatedButton?.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "instant" });
@@ -2155,6 +2242,7 @@ function submitWeekEvent(event) {
 function requestWeekDeletion() {
   if (activeDialog !== weekEventDialog || !weeklyEvents.includes(editingWeekEvent)) return;
   pendingWeekDeletion = editingWeekEvent;
+  showEventStorageError(weekDeleteError);
   document.querySelector("#week-delete-copy").textContent = `«${pendingWeekDeletion.title}»\n${formatDate(pendingWeekDeletion.date)}\n${formatWeekTime(pendingWeekDeletion.start)}–${formatWeekTime(pendingWeekDeletion.end)}`;
   openDialog(weekDeleteDialog, null, document.querySelector("#cancel-week-delete"));
 }
@@ -2167,7 +2255,6 @@ function cancelWeekDeletion() {
 function confirmWeekDeletion() {
   if (activeDialog !== weekDeleteDialog || !pendingWeekDeletion || restoreNeedsReload) return;
   const event = pendingWeekDeletion;
-  pendingWeekDeletion = null;
   const index = weeklyEvents.indexOf(event);
   if (index < 0) {
     dialogOpener = addWeekEventButton;
@@ -2178,7 +2265,8 @@ function confirmWeekDeletion() {
     .sort((a, b) => a.date.localeCompare(b.date) || a.start - b.start);
   const position = visibleEvents.indexOf(event);
   const neighbour = visibleEvents[position + 1] || visibleEvents[position - 1];
-  weeklyEvents.splice(index, 1);
+  if (!saveWeeklyEvents(weeklyEvents.filter((item) => item !== event), weekDeleteError)) return;
+  pendingWeekDeletion = null;
   weekEventElements.delete(event);
   renderWeekEvents();
   const focusTarget = weekEventElements.get(neighbour) || addWeekEventButton;
@@ -2205,7 +2293,7 @@ function renderWeekEvents() {
     card.style.setProperty("--weekly-event-colour", event.colour);
     const time = `${formatWeekTime(event.start)}–${formatWeekTime(event.end)}`;
     card.setAttribute("aria-label", `Редактировать: ${event.title}, ${formatDate(event.date)}, ${time}${event.description ? ", " + event.description : ""}`);
-    for (const [className, text] of [["weekly-event-time", time], ["weekly-event-name", event.title], ["weekly-event-note", event.description]]) {
+    for (const [className, text] of [["weekly-event-time", time], ["weekly-event-name", event.title], ["weekly-event-note", event.description ?? ""]]) {
       const span = document.createElement("span");
       span.className = className;
       span.textContent = text;
@@ -3144,6 +3232,7 @@ setCalendarToolColour(activeCalendarToolColour);
 loadDayMarks();
 loadYearScale();
 loadYearEvents();
+loadWeeklyEvents();
 loadThoughtPlacements();
 showCalendarYear(currentYear);
 loadHistory();

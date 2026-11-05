@@ -166,6 +166,7 @@
         <span id="week-selected"></span>
       </div>
       <p class="weekly-notice" id="week-boundary" hidden>Поддерживаются даты с 0001 по 9999 год. Позиции вне этого диапазона недоступны.</p>
+      <p class="weekly-event-error" id="week-load-error" role="alert" hidden></p>
       <section class="weekly-calendar" tabindex="0" aria-label="Недельная сетка с 00:00 до 24:00, шаг 30 минут">
         <div class="weekly-days" id="week-days"></div>
       </section>
@@ -209,6 +210,7 @@
           </button>
         </header>
         <p class="day-dialog-help" id="week-delete-copy"></p>
+        <p class="weekly-event-error" id="week-delete-error" role="alert" hidden></p>
         <footer class="day-dialog-footer">
           <button class="day-secondary" id="cancel-week-delete" type="button" data-close-dialog>Отмена</button>
           <button class="day-secondary weekly-delete" id="confirm-week-delete" type="button">Удалить</button>
