@@ -2066,6 +2066,70 @@ const weeklyColours = [
 let displayedWeekDate = null;
 let preferredWeekday = 0;
 let yearlyReturnContext = null;
+const weeklyDayKeys = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+const weekSettingsDialog = document.querySelector("#week-settings");
+const weekSettingsButton = document.querySelector("#open-week-settings");
+const firstDaySelect = document.querySelector("#first-day-select");
+const weekSettingsError = document.querySelector("#week-settings-error");
+let firstWeekDay = "mon";
+let weekSettingsSnapshot;
+
+function savedFirstWeekDay(settings) {
+  return weeklyDayKeys.includes(settings.firstDay) ? settings.firstDay : "mon";
+}
+
+function loadFirstWeekDay() {
+  try { firstWeekDay = savedFirstWeekDay(readYearSettings()); }
+  catch { /* Use Monday for display; opening settings reports the read error. */ }
+}
+
+function openWeekSettings() {
+  if (weekView.hidden || activeDialog || restoreNeedsReload) return;
+  weekSettingsSnapshot = undefined;
+  firstDaySelect.value = firstWeekDay;
+  showEventStorageError(weekSettingsError);
+  try {
+    weekSettingsSnapshot = localStorage.getItem(settingsStorageKey);
+    firstDaySelect.value = savedFirstWeekDay(parseYearSettings(weekSettingsSnapshot));
+  } catch {
+    showEventStorageError(weekSettingsError, "Не удалось прочитать настройки. Исходные данные не изменены. Проверьте доступ к хранилищу или исправьте повреждённые данные и повторите попытку.");
+  }
+  weekSettingsButton.setAttribute("aria-expanded", "true");
+  openDialog(weekSettingsDialog, weekSettingsButton, firstDaySelect);
+}
+
+function saveWeekSettings() {
+  if (activeDialog !== weekSettingsDialog || restoreNeedsReload) return;
+  const selected = firstDaySelect.value;
+  if (!weeklyDayKeys.includes(selected)) return;
+  try {
+    const raw = localStorage.getItem(settingsStorageKey);
+    const settings = parseYearSettings(raw);
+    if (weekSettingsSnapshot !== undefined && raw !== weekSettingsSnapshot) {
+      showEventStorageError(weekSettingsError, "Настройки изменились в другой вкладке. Сохранение остановлено. Запомните выбранный день, закройте и снова откройте настройки, чтобы загрузить актуальные значения.");
+      return;
+    }
+    localStorage.setItem(settingsStorageKey, JSON.stringify({ ...settings, firstDay: selected }));
+  } catch {
+    showEventStorageError(weekSettingsError, "Не удалось сохранить первый день недели. Исходные настройки не изменены. Проверьте данные, доступ к хранилищу и свободное место; повторите попытку или отмените выбор.");
+    return;
+  }
+  firstWeekDay = selected;
+  const scroller = weekDaysContainer.parentElement;
+  const top = scroller.scrollTop;
+  renderSelectedWeek(displayedWeekDate, getSelectedWeek(displayedWeekDate));
+  scrollToSelectedWeekday();
+  scroller.scrollTop = top;
+  closeDialog();
+}
+
+// JS weekday numbers remain absolute; only their column positions depend on firstDay.
+function weekDayOffset(weekday) {
+  return (weekday - weeklyDayKeys.indexOf(firstWeekDay) + 7) % 7;
+}
+
+weekSettingsButton.addEventListener("click", openWeekSettings);
+document.querySelector("#save-week-settings").addEventListener("click", saveWeekSettings);
 
 function weeklyDayKey(date) {
   const [year, month, day] = date.split("-").map(Number);
@@ -2336,9 +2400,9 @@ function getSelectedWeek(key) {
   const [year, month, day] = key.split("-").map(Number);
   if (year < minimumYear || year > maximumYear) return [];
   const selected = createLocalDate(year, month - 1, day);
-  const mondayOffset = (selected.getDay() + 6) % 7;
+  const offset = weekDayOffset(selected.getDay());
   return Array.from({ length: 7 }, (_, index) => {
-    const date = createLocalDate(year, month - 1, day - mondayOffset + index);
+    const date = createLocalDate(year, month - 1, day - offset + index);
     if (date.getFullYear() < minimumYear || date.getFullYear() > maximumYear) return null;
     return getDateKey(date.getFullYear(), date.getMonth(), date.getDate());
   });
@@ -2347,8 +2411,8 @@ function getSelectedWeek(key) {
 function adjacentWeekDate(direction) {
   if (!displayedWeekDate || ![-1, 1].includes(direction)) return null;
   const [year, month, day] = displayedWeekDate.split("-").map(Number);
-  const offset = (createLocalDate(year, month - 1, day).getDay() + 6) % 7;
-  const date = createLocalDate(year, month - 1, day - offset + direction * 7 + preferredWeekday);
+  const offset = weekDayOffset(createLocalDate(year, month - 1, day).getDay());
+  const date = createLocalDate(year, month - 1, day - offset + direction * 7 + weekDayOffset(preferredWeekday));
   const key = date.getFullYear() < minimumYear ? getDateKey(minimumYear, 0, 1)
     : date.getFullYear() > maximumYear ? getDateKey(maximumYear, 11, 31)
     : getDateKey(date.getFullYear(), date.getMonth(), date.getDate());
@@ -2376,7 +2440,7 @@ function goToCurrentWeek() {
   const key = getDateKey(now.getFullYear(), now.getMonth(), now.getDate());
   const dates = getSelectedWeek(key);
   if (!dates.length) return;
-  preferredWeekday = (now.getDay() + 6) % 7;
+  preferredWeekday = now.getDay();
   renderSelectedWeek(key, dates);
   scrollToSelectedWeekday();
 }
@@ -2410,7 +2474,8 @@ function renderSelectedWeek(key, dates) {
     heading.className = "weekly-day-title";
     const weekday = document.createElement("span");
     weekday.className = "weekly-weekday";
-    weekday.textContent = weekDays[index] + (date === key ? " · выбрано" : "");
+    const weekdayNumber = (weeklyDayKeys.indexOf(firstWeekDay) + index) % 7;
+    weekday.textContent = weekDays[(weekdayNumber + 6) % 7] + (date === key ? " · выбрано" : "");
     const label = document.createElement(date ? "time" : "span");
     label.className = "weekly-date";
     if (date) {
@@ -2424,7 +2489,7 @@ function renderSelectedWeek(key, dates) {
       column.classList.add("unavailable");
       column.setAttribute("aria-disabled", "true");
     }
-    column.classList.toggle("weekend", index >= 5);
+    column.classList.toggle("weekend", weekdayNumber === 0 || weekdayNumber === 6);
     column.classList.toggle("active", date === key);
     heading.append(weekday, label);
     const timeline = document.createElement("div");
@@ -2452,7 +2517,7 @@ function openSelectedWeek(key, opener) {
   hideThoughtUndo();
   endThoughtDrag();
   const [year, month, day] = key.split("-").map(Number);
-  preferredWeekday = (createLocalDate(year, month - 1, day).getDay() + 6) % 7;
+  preferredWeekday = createLocalDate(year, month - 1, day).getDay();
   renderSelectedWeek(key, dates);
   app.hidden = true;
   app.inert = true;
@@ -2636,6 +2701,10 @@ function closeDialog() {
   }
   if (activeDialog === filtersDialog) filtersButton.setAttribute("aria-expanded", "false");
   activeDialog.hidden = true;
+  if (activeDialog === weekSettingsDialog) {
+    weekSettingsButton.setAttribute("aria-expanded", "false");
+    weekSettingsSnapshot = undefined;
+  }
   app.inert = app.hidden;
   weekView.inert = weekView.hidden;
   restoreDialogFocus();
@@ -3195,7 +3264,7 @@ backupFile.addEventListener("change", prepareBackupRestore);
 restoreConfirm.addEventListener("click", confirmBackupRestore);
 document.querySelector("#reload-after-restore").addEventListener("click", () => window.location.reload());
 
-for (const dialog of [creationDialog, cardDialog, listDialog, filtersDialog, thoughtDialog, thoughtDeleteDialog, historyDeleteDialog, settingsDialog, dayEraseDialog, templatesDialog, templateDialog, templateDeleteDialog, templateFutureDialog, restoreDialog, weekEventDialog, weekDeleteDialog]) {
+for (const dialog of [creationDialog, cardDialog, listDialog, filtersDialog, thoughtDialog, thoughtDeleteDialog, historyDeleteDialog, settingsDialog, dayEraseDialog, templatesDialog, templateDialog, templateDeleteDialog, templateFutureDialog, restoreDialog, weekEventDialog, weekDeleteDialog, weekSettingsDialog]) {
   dialog.addEventListener("click", (event) => {
     if (event.target === dialog || event.target.closest("[data-close-dialog]")) dismissDialog();
     else if (event.target.closest("[data-back-to-list]")) returnToDayList();
@@ -3231,6 +3300,7 @@ createColourPalette(dayMarkPalette, (colour) => colour, setCalendarToolColour);
 setCalendarToolColour(activeCalendarToolColour);
 loadDayMarks();
 loadYearScale();
+loadFirstWeekDay();
 loadYearEvents();
 loadWeeklyEvents();
 loadThoughtPlacements();

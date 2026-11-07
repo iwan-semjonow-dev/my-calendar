@@ -159,6 +159,7 @@
         </nav>
         <button class="weekly-back" type="button" id="back-to-year">← Годовой календарь</button>
         <button class="weekly-back weekly-today" type="button" id="week-today">Сегодня</button>
+        <button class="weekly-back" type="button" id="open-week-settings" aria-haspopup="dialog" aria-expanded="false" aria-controls="week-settings">Настройки</button>
         <button class="day-primary" type="button" id="add-week-event" aria-haspopup="dialog">＋ Добавить событие</button>
       </header>
       <div class="weekly-crumb">
@@ -214,6 +215,28 @@
         <footer class="day-dialog-footer">
           <button class="day-secondary" id="cancel-week-delete" type="button" data-close-dialog>Отмена</button>
           <button class="day-secondary weekly-delete" id="confirm-week-delete" type="button">Удалить</button>
+        </footer>
+      </section>
+    </div>
+    <div class="day-backdrop settings-backdrop" id="week-settings" role="dialog" aria-modal="true" aria-labelledby="week-settings-title" hidden>
+      <section class="day-dialog weekly-event-dialog">
+        <header class="day-dialog-header">
+          <h2 id="week-settings-title">Настройки</h2>
+          <button class="settings-close" type="button" data-close-dialog aria-label="Закрыть настройки">
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 6 18 18M18 6 6 18" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="2.2" /></svg>
+          </button>
+        </header>
+        <label class="yearly-field">Первый день недели
+          <select id="first-day-select">
+            <option value="mon">Понедельник</option><option value="sun">Воскресенье</option>
+            <option value="tue">Вторник</option><option value="wed">Среда</option>
+            <option value="thu">Четверг</option><option value="fri">Пятница</option><option value="sat">Суббота</option>
+          </select>
+        </label>
+        <p class="settings-error" id="week-settings-error" role="alert" hidden></p>
+        <footer class="day-dialog-footer">
+          <button class="day-secondary" type="button" data-close-dialog>Отмена</button>
+          <button class="day-primary" id="save-week-settings" type="button">Сохранить</button>
         </footer>
       </section>
     </div>
