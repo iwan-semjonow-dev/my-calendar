@@ -165,6 +165,7 @@
       <div class="weekly-crumb">
         <strong id="week-range" aria-live="polite" aria-atomic="true"></strong>
         <span id="week-selected"></span>
+        <span id="week-range-info"></span>
       </div>
       <p class="weekly-notice" id="week-boundary" hidden>Поддерживаются даты с 0001 по 9999 год. Позиции вне этого диапазона недоступны.</p>
       <p class="weekly-event-error" id="week-load-error" role="alert" hidden></p>
@@ -233,6 +234,14 @@
             <option value="thu">Четверг</option><option value="fri">Пятница</option><option value="sat">Суббота</option>
           </select>
         </label>
+        <div class="settings-section">
+          <h3>Основной диапазон</h3>
+          <p class="day-dialog-help">Остальные часы доступны прокруткой. Диапазон не ограничивает время событий.</p>
+          <div class="weekly-event-times">
+            <label class="yearly-field">Начало<select id="range-start-select"></select></label>
+            <label class="yearly-field">Конец<select id="range-end-select"></select></label>
+          </div>
+        </div>
         <p class="settings-error" id="week-settings-error" role="alert" hidden></p>
         <footer class="day-dialog-footer">
           <button class="day-secondary" type="button" data-close-dialog>Отмена</button>

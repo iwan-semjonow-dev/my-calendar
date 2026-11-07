@@ -2071,6 +2071,11 @@ const weekSettingsDialog = document.querySelector("#week-settings");
 const weekSettingsButton = document.querySelector("#open-week-settings");
 const firstDaySelect = document.querySelector("#first-day-select");
 const weekSettingsError = document.querySelector("#week-settings-error");
+const rangeStartSelect = document.querySelector("#range-start-select");
+const rangeEndSelect = document.querySelector("#range-end-select");
+const validRangeStarts = Array.from({ length: 24 }, (_, hour) => hour * 60);
+const validRangeEnds = Array.from({ length: 24 }, (_, hour) => (hour + 1) * 60);
+let weekRange = { rangeStart: 360, rangeEnd: 1320 };
 let firstWeekDay = "mon";
 let weekSettingsSnapshot;
 
@@ -2078,22 +2083,59 @@ function savedFirstWeekDay(settings) {
   return weeklyDayKeys.includes(settings.firstDay) ? settings.firstDay : "mon";
 }
 
-function loadFirstWeekDay() {
-  try { firstWeekDay = savedFirstWeekDay(readYearSettings()); }
-  catch { /* Use Monday for display; opening settings reports the read error. */ }
+function savedWeekRange(settings) {
+  const minutes = (value) => typeof value === "number" || (typeof value === "string" && /^\d+$/.test(value)) ? Number(value) : NaN;
+  const start = minutes(settings.rangeStart);
+  const end = minutes(settings.rangeEnd);
+  const rangeStart = validRangeStarts.includes(start) ? start : 360;
+  const rangeEnd = validRangeEnds.includes(end) ? end : 1320;
+  return rangeEnd > rangeStart ? { rangeStart, rangeEnd } : { rangeStart: 360, rangeEnd: 1320 };
+}
+
+function loadWeekSettings() {
+  try {
+    const settings = readYearSettings();
+    firstWeekDay = savedFirstWeekDay(settings);
+    weekRange = savedWeekRange(settings);
+  } catch { /* Display defaults; opening settings reports the read error. */ }
+}
+
+function syncWeekRangeOptions() {
+  const start = Number(rangeStartSelect.value);
+  const end = Number(rangeEndSelect.value);
+  [...rangeStartSelect.options].forEach((option) => { option.disabled = Number(option.value) >= end; });
+  [...rangeEndSelect.options].forEach((option) => { option.disabled = Number(option.value) <= start; });
+}
+
+function applyWeekRange() {
+  const scroller = weekDaysContainer.parentElement;
+  const timeline = weekDaysContainer.querySelector(".weekly-timeline");
+  const pixelsPerMinute = timeline.getBoundingClientRect().height / 1440;
+  const headerHeight = weekDaysContainer.querySelector(".weekly-day-title").getBoundingClientRect().height;
+  const frameHeight = scroller.offsetHeight - scroller.clientHeight;
+  // Keep the fixed time scale and existing 840px panel cap; only the viewport changes.
+  scroller.style.maxHeight = `${Math.min(840, headerHeight + (weekRange.rangeEnd - weekRange.rangeStart) * pixelsPerMinute + frameHeight)}px`;
+  scroller.scrollTop = weekRange.rangeStart * pixelsPerMinute;
+  document.querySelector("#week-range-info").textContent = `Основной диапазон: ${formatWeekTime(weekRange.rangeStart)}–${formatWeekTime(weekRange.rangeEnd)}`;
 }
 
 function openWeekSettings() {
   if (weekView.hidden || activeDialog || restoreNeedsReload) return;
   weekSettingsSnapshot = undefined;
   firstDaySelect.value = firstWeekDay;
+  let range = weekRange;
   showEventStorageError(weekSettingsError);
   try {
     weekSettingsSnapshot = localStorage.getItem(settingsStorageKey);
-    firstDaySelect.value = savedFirstWeekDay(parseYearSettings(weekSettingsSnapshot));
+    const settings = parseYearSettings(weekSettingsSnapshot);
+    firstDaySelect.value = savedFirstWeekDay(settings);
+    range = savedWeekRange(settings);
   } catch {
     showEventStorageError(weekSettingsError, "Не удалось прочитать настройки. Исходные данные не изменены. Проверьте доступ к хранилищу или исправьте повреждённые данные и повторите попытку.");
   }
+  rangeStartSelect.value = String(range.rangeStart);
+  rangeEndSelect.value = String(range.rangeEnd);
+  syncWeekRangeOptions();
   weekSettingsButton.setAttribute("aria-expanded", "true");
   openDialog(weekSettingsDialog, weekSettingsButton, firstDaySelect);
 }
@@ -2102,24 +2144,30 @@ function saveWeekSettings() {
   if (activeDialog !== weekSettingsDialog || restoreNeedsReload) return;
   const selected = firstDaySelect.value;
   if (!weeklyDayKeys.includes(selected)) return;
+  const rangeStart = Number(rangeStartSelect.value);
+  const rangeEnd = Number(rangeEndSelect.value);
+  if (rangeStartSelect.value === "" || rangeEndSelect.value === ""
+    || !validRangeStarts.includes(rangeStart) || !validRangeEnds.includes(rangeEnd) || rangeEnd <= rangeStart) {
+    showEventStorageError(weekSettingsError, "Выберите начало от 00:00 до 23:00 и конец от 01:00 до 24:00 с шагом один час. Конец должен быть позже начала.");
+    return;
+  }
   try {
     const raw = localStorage.getItem(settingsStorageKey);
     const settings = parseYearSettings(raw);
     if (weekSettingsSnapshot !== undefined && raw !== weekSettingsSnapshot) {
-      showEventStorageError(weekSettingsError, "Настройки изменились в другой вкладке. Сохранение остановлено. Запомните выбранный день, закройте и снова откройте настройки, чтобы загрузить актуальные значения.");
+      showEventStorageError(weekSettingsError, "Настройки изменились в другой вкладке. Сохранение остановлено. Запомните выбранные значения, закройте и снова откройте настройки, чтобы загрузить актуальные данные.");
       return;
     }
-    localStorage.setItem(settingsStorageKey, JSON.stringify({ ...settings, firstDay: selected }));
+    localStorage.setItem(settingsStorageKey, JSON.stringify({ ...settings, firstDay: selected, rangeStart, rangeEnd }));
   } catch {
-    showEventStorageError(weekSettingsError, "Не удалось сохранить первый день недели. Исходные настройки не изменены. Проверьте данные, доступ к хранилищу и свободное место; повторите попытку или отмените выбор.");
+    showEventStorageError(weekSettingsError, "Не удалось сохранить настройки недели. Исходные настройки не изменены. Проверьте данные, доступ к хранилищу и свободное место; повторите попытку или отмените выбор.");
     return;
   }
   firstWeekDay = selected;
-  const scroller = weekDaysContainer.parentElement;
-  const top = scroller.scrollTop;
+  weekRange = { rangeStart, rangeEnd };
   renderSelectedWeek(displayedWeekDate, getSelectedWeek(displayedWeekDate));
   scrollToSelectedWeekday();
-  scroller.scrollTop = top;
+  applyWeekRange();
   closeDialog();
 }
 
@@ -2130,6 +2178,19 @@ function weekDayOffset(weekday) {
 
 weekSettingsButton.addEventListener("click", openWeekSettings);
 document.querySelector("#save-week-settings").addEventListener("click", saveWeekSettings);
+for (const [select, values] of [[rangeStartSelect, validRangeStarts], [rangeEndSelect, validRangeEnds]]) {
+  values.forEach((minutes) => select.add(new Option(formatWeekTime(minutes), String(minutes))));
+  select.addEventListener("change", () => {
+    const start = Number(rangeStartSelect.value);
+    const end = Number(rangeEndSelect.value);
+    if (rangeStartSelect.value !== "" && rangeEndSelect.value !== ""
+      && validRangeStarts.includes(start) && validRangeEnds.includes(end) && end <= start) {
+      if (select === rangeStartSelect) rangeEndSelect.value = String(start + 60);
+      else rangeStartSelect.value = String(end - 60);
+    }
+    syncWeekRangeOptions();
+  });
+}
 
 function weeklyDayKey(date) {
   const [year, month, day] = date.split("-").map(Number);
@@ -2527,7 +2588,7 @@ function openSelectedWeek(key, opener) {
   window.scrollTo({ top: 0, left: 0, behavior: "instant" });
   document.querySelector("#week-title").focus({ preventScroll: true });
   scrollToSelectedWeekday();
-  weekDaysContainer.parentElement.scrollTop = 0;
+  applyWeekRange();
 }
 
 function returnToYear() {
@@ -3300,7 +3361,7 @@ createColourPalette(dayMarkPalette, (colour) => colour, setCalendarToolColour);
 setCalendarToolColour(activeCalendarToolColour);
 loadDayMarks();
 loadYearScale();
-loadFirstWeekDay();
+loadWeekSettings();
 loadYearEvents();
 loadWeeklyEvents();
 loadThoughtPlacements();
