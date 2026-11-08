@@ -2073,6 +2073,8 @@ const firstDaySelect = document.querySelector("#first-day-select");
 const weekSettingsError = document.querySelector("#week-settings-error");
 const rangeStartSelect = document.querySelector("#range-start-select");
 const rangeEndSelect = document.querySelector("#range-end-select");
+const timeStepSelect = document.querySelector("#time-step-select");
+let weekTimeStep = 30;
 const validRangeStarts = Array.from({ length: 24 }, (_, hour) => hour * 60);
 const validRangeEnds = Array.from({ length: 24 }, (_, hour) => (hour + 1) * 60);
 let weekRange = { rangeStart: 360, rangeEnd: 1320 };
@@ -2081,6 +2083,10 @@ let weekSettingsSnapshot;
 
 function savedFirstWeekDay(settings) {
   return weeklyDayKeys.includes(settings.firstDay) ? settings.firstDay : "mon";
+}
+
+function savedWeekTimeStep(settings) {
+  return [15, 30].includes(Number(settings.timeStep)) ? Number(settings.timeStep) : 30;
 }
 
 function savedWeekRange(settings) {
@@ -2097,6 +2103,7 @@ function loadWeekSettings() {
     const settings = readYearSettings();
     firstWeekDay = savedFirstWeekDay(settings);
     weekRange = savedWeekRange(settings);
+    weekTimeStep = savedWeekTimeStep(settings);
   } catch { /* Display defaults; opening settings reports the read error. */ }
 }
 
@@ -2123,12 +2130,14 @@ function openWeekSettings() {
   if (weekView.hidden || activeDialog || restoreNeedsReload) return;
   weekSettingsSnapshot = undefined;
   firstDaySelect.value = firstWeekDay;
+  timeStepSelect.value = String(weekTimeStep);
   let range = weekRange;
   showEventStorageError(weekSettingsError);
   try {
     weekSettingsSnapshot = localStorage.getItem(settingsStorageKey);
     const settings = parseYearSettings(weekSettingsSnapshot);
     firstDaySelect.value = savedFirstWeekDay(settings);
+    timeStepSelect.value = String(savedWeekTimeStep(settings));
     range = savedWeekRange(settings);
   } catch {
     showEventStorageError(weekSettingsError, "Не удалось прочитать настройки. Исходные данные не изменены. Проверьте доступ к хранилищу или исправьте повреждённые данные и повторите попытку.");
@@ -2144,6 +2153,11 @@ function saveWeekSettings() {
   if (activeDialog !== weekSettingsDialog || restoreNeedsReload) return;
   const selected = firstDaySelect.value;
   if (!weeklyDayKeys.includes(selected)) return;
+  const timeStep = Number(timeStepSelect.value);
+  if (![15, 30].includes(timeStep)) {
+    showEventStorageError(weekSettingsError, "Выберите шаг времени: 15 или 30 минут.");
+    return;
+  }
   const rangeStart = Number(rangeStartSelect.value);
   const rangeEnd = Number(rangeEndSelect.value);
   if (rangeStartSelect.value === "" || rangeEndSelect.value === ""
@@ -2158,13 +2172,14 @@ function saveWeekSettings() {
       showEventStorageError(weekSettingsError, "Настройки изменились в другой вкладке. Сохранение остановлено. Запомните выбранные значения, закройте и снова откройте настройки, чтобы загрузить актуальные данные.");
       return;
     }
-    localStorage.setItem(settingsStorageKey, JSON.stringify({ ...settings, firstDay: selected, rangeStart, rangeEnd }));
+    localStorage.setItem(settingsStorageKey, JSON.stringify({ ...settings, firstDay: selected, rangeStart, rangeEnd, timeStep }));
   } catch {
     showEventStorageError(weekSettingsError, "Не удалось сохранить настройки недели. Исходные настройки не изменены. Проверьте данные, доступ к хранилищу и свободное место; повторите попытку или отмените выбор.");
     return;
   }
   firstWeekDay = selected;
   weekRange = { rangeStart, rangeEnd };
+  weekTimeStep = timeStep;
   renderSelectedWeek(displayedWeekDate, getSelectedWeek(displayedWeekDate));
   scrollToSelectedWeekday();
   applyWeekRange();
@@ -2260,9 +2275,10 @@ function formatWeekTime(minutes) {
 
 function parseWeekTime(value, allowEndOfDay = false) {
   if (allowEndOfDay && value === "24:00") return 1440;
-  if (!/^([01]\d|2[0-3]):[03]0$/.test(value)) return NaN;
+  if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(value)) return NaN;
   const [hour, minute] = value.split(":").map(Number);
-  return hour * 60 + minute;
+  const minutes = hour * 60 + minute;
+  return minutes % weekTimeStep === 0 ? minutes : NaN;
 }
 
 function setWeekEventColour(colour) {
@@ -2297,14 +2313,14 @@ function openWeekEventForm(eventToEdit = null, opener = addWeekEventButton, init
     fields.date.add(new Option(formatDate(date), date));
   });
   fields.date.value = eventToEdit?.date || initialSlot?.date || displayedWeekDate;
-  for (const [field, first, last] of [[fields.start, 0, 1410], [fields.end, 30, 1440]]) {
+  for (const [field, first, last] of [[fields.start, 0, 1440 - weekTimeStep], [fields.end, weekTimeStep, 1440]]) {
     field.replaceChildren();
-    for (let minutes = first; minutes <= last; minutes += 30) {
+    for (let minutes = first; minutes <= last; minutes += weekTimeStep) {
       const time = formatWeekTime(minutes);
       field.add(new Option(time, time));
     }
     const savedTime = eventToEdit?.[field.name];
-    if (savedTime !== undefined && savedTime % 30 !== 0) {
+    if (savedTime !== undefined && savedTime % weekTimeStep !== 0) {
       const time = formatWeekTime(savedTime);
       field.add(new Option(`${time} · сохранённое время`, time));
     }
@@ -2312,7 +2328,7 @@ function openWeekEventForm(eventToEdit = null, opener = addWeekEventButton, init
   fields.title.value = eventToEdit?.title || "";
   fields.description.value = eventToEdit?.description || "";
   fields.start.value = formatWeekTime(eventToEdit?.start ?? initialSlot?.start ?? 1080);
-  fields.end.value = formatWeekTime(eventToEdit?.end ?? initialSlot?.end ?? 1110);
+  fields.end.value = formatWeekTime(eventToEdit?.end ?? initialSlot?.end ?? (1080 + weekTimeStep));
   setWeekEventColour(eventToEdit?.colour || weeklyColours[0][0]);
   openDialog(weekEventDialog, opener, fields.title);
 }
@@ -2325,7 +2341,7 @@ function validateWeekEvent(record, ignoredEvent = null) {
   if (record.title.length > Math.max(60, ignoredEvent?.title.length || 0)
     || record.description.length > Math.max(240, ignoredEvent?.description?.length || 0)) return "Название — до 60 символов, описание — до 240; длинные сохранённые значения можно сохранить без сокращения.";
   if (!Number.isFinite(record.start) || !Number.isFinite(record.end) || record.end <= record.start) {
-    return "Выберите начало и конец с шагом 30 минут. Конец должен быть позже начала, не позднее 24:00.";
+    return `Выберите начало и конец с шагом ${weekTimeStep} минут. Конец должен быть позже начала, не позднее 24:00.`;
   }
   if (!weeklyColours.some(([colour]) => colour === record.colour) && record.colour !== ignoredEvent?.colour) return "Выберите цвет события.";
   const conflict = weeklyEvents.find((event) => event !== ignoredEvent && event.date === record.date && record.start < event.end && record.end > event.start);
@@ -2450,7 +2466,7 @@ weekDaysContainer.addEventListener("click", (event) => {
   const bounds = event.target.getBoundingClientRect();
   const offset = event.clientY - bounds.top;
   if (bounds.height <= 0 || offset < 0 || offset >= bounds.height) return;
-  const step = 30;
+  const step = weekTimeStep;
   const start = Math.min(1440 - step, Math.floor(offset / (bounds.height * step / 1440)) * step);
   openWeekEventForm(null, weekDaysContainer.parentElement, { date, start, end: start + step });
 });
@@ -2527,6 +2543,8 @@ function createWeekTimeScale() {
 
 function renderSelectedWeek(key, dates) {
   displayedWeekDate = key;
+  weekDaysContainer.style.setProperty("--week-time-step", `calc(var(--week-hour-height) * ${weekTimeStep} / 60)`);
+  weekDaysContainer.parentElement.setAttribute("aria-label", `Недельная сетка с 00:00 до 24:00, шаг ${weekTimeStep} минут`);
   weekDaysContainer.replaceChildren(createWeekTimeScale());
   dates.forEach((date, index) => {
     const column = document.createElement("section");
