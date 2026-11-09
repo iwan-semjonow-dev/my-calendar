@@ -184,7 +184,10 @@
         <form class="yearly-form" id="week-event-form" novalidate>
           <div class="weekly-event-times">
             <label class="yearly-field">Дата<select name="date" required></select></label>
-            <label class="yearly-field">Категория<select name="category"></select></label>
+            <div class="weekly-category-control">
+              <label class="yearly-field">Категория<select name="category"></select></label>
+              <button class="day-secondary" id="manage-week-categories" type="button">Категории</button>
+            </div>
           </div>
           <label class="yearly-field">Название<input name="title" required maxlength="60" placeholder="Например: тренировка" /></label>
           <div class="weekly-event-times">
@@ -219,6 +222,37 @@
         <footer class="day-dialog-footer">
           <button class="day-secondary" id="cancel-week-delete" type="button" data-close-dialog>Отмена</button>
           <button class="day-secondary weekly-delete" id="confirm-week-delete" type="button">Удалить</button>
+        </footer>
+      </section>
+    </div>
+    <div class="day-backdrop" id="week-categories" role="dialog" aria-modal="true" aria-labelledby="week-categories-title" hidden>
+      <section class="day-dialog weekly-event-dialog">
+        <header class="day-dialog-header">
+          <h2 id="week-categories-title">Категории</h2>
+          <button class="settings-close" type="button" data-close-dialog aria-label="Закрыть категории"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 6 18 18M18 6 6 18" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="2.2" /></svg></button>
+        </header>
+        <p class="day-dialog-help">Категории помогают группировать события. Цвет события выбирается отдельно.</p>
+        <form id="week-category-add" class="weekly-category-add" novalidate>
+          <label class="yearly-field">Новая категория<input id="week-category-name" maxlength="32" required placeholder="Например: Спорт" /></label>
+          <button class="day-primary" type="submit">Добавить</button>
+        </form>
+        <ul id="week-category-list" class="weekly-category-list" aria-label="Список категорий"></ul>
+        <p id="week-categories-empty" class="day-dialog-help" hidden>Категорий пока нет. Можно добавить новую или использовать «Без категории».</p>
+        <p id="week-category-notice" class="day-dialog-help" role="status" hidden></p>
+        <footer class="day-dialog-footer"><button class="day-primary" type="button" data-close-dialog>Готово</button></footer>
+      </section>
+    </div>
+    <div class="day-backdrop" id="week-category-delete" role="dialog" aria-modal="true" aria-labelledby="week-category-delete-title" hidden>
+      <section class="day-dialog weekly-event-dialog">
+        <header class="day-dialog-header">
+          <h2 id="week-category-delete-title">Удалить категорию?</h2>
+          <button class="settings-close" type="button" data-close-dialog aria-label="Закрыть подтверждение"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 6 18 18M18 6 6 18" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="2.2" /></svg></button>
+        </header>
+        <p id="week-category-delete-copy" class="day-dialog-help"></p>
+        <p id="week-category-delete-error" class="weekly-event-error" role="alert" hidden></p>
+        <footer class="day-dialog-footer">
+          <button id="cancel-week-category-delete" class="day-secondary" type="button" data-close-dialog>Отмена</button>
+          <button id="confirm-week-category-delete" class="day-primary" type="button">Удалить категорию</button>
         </footer>
       </section>
     </div>

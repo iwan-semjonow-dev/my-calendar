@@ -2067,16 +2067,184 @@ let displayedWeekDate = null;
 let preferredWeekday = 0;
 let yearlyReturnContext = null;
 const weeklyDayKeys = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
-const weeklyCategories = [
-  ["uncategorized", "Без категории"], ["study", "Учёба"], ["work", "Работа"],
-  ["project", "Проект"], ["personal", "Личное"], ["finance", "Финансы"],
+const weeklyCategoryStorageKey = "my-calendar-week-categories-v1";
+const initialWeeklyCategories = [
+  { id: "study", label: "Учёба", defaultColour: "#4169e1" },
+  { id: "work", label: "Работа", defaultColour: "#39995d" },
+  { id: "project", label: "Проект", defaultColour: "#c99919" },
+  { id: "personal", label: "Личное", defaultColour: "#d44e87" },
+  { id: "finance", label: "Финансы", defaultColour: "#169c93" },
 ];
+let weeklyCategories = initialWeeklyCategories;
+let categorySnapshot;
+let categoryReadError = false;
+let pendingCategoryDeletion = null;
+const categoryDialog = document.querySelector("#week-categories");
+const categoryDeleteDialog = document.querySelector("#week-category-delete");
+const categoryName = document.querySelector("#week-category-name");
+const categoryNotice = document.querySelector("#week-category-notice");
+const categoryDeleteError = document.querySelector("#week-category-delete-error");
+const manageCategoriesButton = document.querySelector("#manage-week-categories");
+
+function categoryOptions() {
+  return [["uncategorized", "Без категории"], ...weeklyCategories.map(({ id, label }) => [id, label])];
+}
 
 function weekCategoryLabel(category) {
   if (category === undefined) return "Без категории (не задана)";
-  return weeklyCategories.find(([id]) => id === category)?.[1]
+  return categoryOptions().find(([id]) => id === category)?.[1]
     ?? `Сохранённая категория: ${category || "(пустая строка)"}`;
 }
+
+function parseWeeklyCategories(raw) {
+  if (raw === null) return initialWeeklyCategories.map((item) => ({ ...item }));
+  const items = JSON.parse(raw);
+  const ids = new Set();
+  if (!Array.isArray(items) || items.some((item) => {
+    if (!item || typeof item !== "object" || Array.isArray(item)
+      || typeof item.id !== "string" || !/^[a-z][a-z0-9-]{0,39}$/.test(item.id)
+      || item.id === "uncategorized" || ids.has(item.id)
+      || typeof item.label !== "string" || !item.label.trim()
+      || (item.defaultColour !== undefined && typeof item.defaultColour !== "string")) return true;
+    ids.add(item.id);
+    return false;
+  })) throw new Error("Данные категорий повреждены или не поддерживаются.");
+  return items;
+}
+
+function loadWeeklyCategories() {
+  try {
+    categorySnapshot = localStorage.getItem(weeklyCategoryStorageKey);
+    weeklyCategories = parseWeeklyCategories(categorySnapshot);
+  } catch { categoryReadError = true; }
+}
+
+function checkWeeklyCategories() {
+  const raw = localStorage.getItem(weeklyCategoryStorageKey);
+  parseWeeklyCategories(raw);
+  if (categoryReadError || raw !== categorySnapshot) {
+    throw new Error("Категории недоступны или изменились в другой вкладке. Скопируйте черновик и перезагрузите страницу.");
+  }
+}
+
+function saveWeeklyCategories(items) {
+  checkWeeklyCategories();
+  const raw = JSON.stringify(items);
+  localStorage.setItem(weeklyCategoryStorageKey, raw);
+  categorySnapshot = raw;
+  weeklyCategories = items;
+}
+
+function renderWeekCategoryOptions(category) {
+  const field = weekEventForm.elements.category;
+  field.replaceChildren();
+  categoryOptions().forEach(([id, label]) => field.add(new Option(label, id)));
+  if (!categoryOptions().some(([id]) => id === category)) {
+    field.add(new Option(weekCategoryLabel(category), category ?? ""));
+  }
+  field.value = category ?? "";
+}
+
+function renderWeeklyCategoryList() {
+  const list = document.querySelector("#week-category-list");
+  list.replaceChildren();
+  weeklyCategories.forEach((category) => {
+    const row = document.createElement("li");
+    const swatch = document.createElement("span");
+    swatch.className = "weekly-category-swatch";
+    swatch.style.backgroundColor = /^#[\da-f]{6}$/i.test(category.defaultColour || "") ? category.defaultColour : "#687582";
+    swatch.setAttribute("aria-hidden", "true");
+    const label = document.createElement("strong");
+    label.textContent = category.label;
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "day-secondary weekly-delete";
+    button.textContent = "Удалить";
+    button.dataset.categoryId = category.id;
+    button.setAttribute("aria-label", `Удалить категорию «${category.label}»`);
+    button.addEventListener("click", () => {
+      pendingCategoryDeletion = category;
+      showEventStorageError(categoryDeleteError);
+      document.querySelector("#week-category-delete-copy").textContent = `Удалить категорию «${category.label}»? Связанные события останутся без категории, со своими цветами и остальными данными.`;
+      openDialog(categoryDeleteDialog, null, document.querySelector("#cancel-week-category-delete"));
+    });
+    row.append(swatch, label, button);
+    list.append(row);
+  });
+  document.querySelector("#week-categories-empty").hidden = weeklyCategories.length > 0;
+}
+
+function returnToWeeklyCategories() {
+  const id = pendingCategoryDeletion?.id;
+  pendingCategoryDeletion = null;
+  const button = [...categoryDialog.querySelectorAll("[data-category-id]")].find((item) => item.dataset.categoryId === id);
+  openDialog(categoryDialog, null, button || categoryName);
+}
+
+manageCategoriesButton.addEventListener("click", () => {
+  categoryName.value = "";
+  showEventStorageError(categoryNotice);
+  try { checkWeeklyCategories(); }
+  catch (error) { showEventStorageError(categoryNotice, `${error.message} Исходные данные не изменены.`); }
+  renderWeeklyCategoryList();
+  openDialog(categoryDialog, null, categoryName);
+});
+
+document.querySelector("#week-category-add").addEventListener("submit", (event) => {
+  event.preventDefault();
+  if (activeDialog !== categoryDialog || restoreNeedsReload) return;
+  const label = categoryName.value.trim();
+  if (!label || label.length > 32) {
+    showEventStorageError(categoryNotice, "Введите название от 1 до 32 символов, не только пробелы.");
+    return;
+  }
+  if (weeklyCategories.some((item) => item.label.trim().localeCompare(label, "ru", { sensitivity: "accent" }) === 0)) {
+    showEventStorageError(categoryNotice, `Категория «${label}» уже есть в списке.`);
+    return;
+  }
+  const category = { id: `custom-${crypto.randomUUID().replaceAll("-", "")}`, label, defaultColour: "#687582" };
+  try { saveWeeklyCategories([...weeklyCategories, category]); }
+  catch (error) { showEventStorageError(categoryNotice, `Не удалось добавить категорию. ${error.message} Черновик сохранён; повторите попытку после устранения причины.`); return; }
+  renderWeekCategoryOptions(category.id);
+  renderWeeklyCategoryList();
+  categoryName.value = "";
+  showEventStorageError(categoryNotice, `Категория «${label}» добавлена и выбрана для события.`);
+  categoryName.focus({ preventScroll: true });
+});
+
+document.querySelector("#confirm-week-category-delete").addEventListener("click", () => {
+  if (activeDialog !== categoryDeleteDialog || !pendingCategoryDeletion || restoreNeedsReload) return;
+  const category = pendingCategoryDeletion;
+  let eventsUpdated = false;
+  try {
+    checkWeeklyCategories();
+    if (weeklyStorageBlocked || localStorage.getItem(weeklyEventStorageKey) !== weeklyStorageSnapshot) {
+      throw new Error("Недельные события недоступны или изменились в другой вкладке. Скопируйте черновик и перезагрузите страницу.");
+    }
+    const previous = editingWeekEvent;
+    const next = weeklyEvents.map((item) => item.category === category.id ? { ...item, category: "uncategorized" } : item);
+    if (next.some((item, index) => item !== weeklyEvents[index])) {
+      const editedIndex = weeklyEvents.indexOf(previous);
+      if (!saveWeeklyEvents(next, categoryDeleteError)) return;
+      eventsUpdated = true;
+      if (editedIndex >= 0) editingWeekEvent = next[editedIndex];
+      renderWeekEvents();
+      if (editingWeekEvent) dialogOpener = weekEventElements.get(editingWeekEvent) || addWeekEventButton;
+      if (weekEventForm.elements.category.value === category.id) renderWeekCategoryOptions("uncategorized");
+    }
+    // Events first: if the category write fails, the category remains and deletion is retryable.
+    saveWeeklyCategories(weeklyCategories.filter((item) => item.id !== category.id));
+  } catch (error) {
+    showEventStorageError(categoryDeleteError, `${eventsUpdated ? "Связанные события уже сохранены без категории. " : ""}Категория не удалена. ${error.message} Повторите попытку после устранения причины.`);
+    return;
+  }
+  if (weekEventForm.elements.category.value === category.id) renderWeekCategoryOptions("uncategorized");
+  else renderWeekCategoryOptions(weekEventForm.elements.category.value === "" && editingWeekEvent?.category === undefined
+    ? undefined : weekEventForm.elements.category.value);
+  renderWeeklyCategoryList();
+  showEventStorageError(categoryNotice, `Категория «${category.label}» удалена. События сохранены.`);
+  returnToWeeklyCategories();
+});
 const weekSettingsDialog = document.querySelector("#week-settings");
 const weekSettingsButton = document.querySelector("#open-week-settings");
 const firstDaySelect = document.querySelector("#first-day-select");
@@ -2323,13 +2491,9 @@ function openWeekEventForm(eventToEdit = null, opener = addWeekEventButton, init
     fields.date.add(new Option(formatDate(date), date));
   });
   fields.date.value = eventToEdit?.date || initialSlot?.date || displayedWeekDate;
-  const category = eventToEdit ? eventToEdit.category : "study";
-  fields.category.replaceChildren();
-  weeklyCategories.forEach(([id, label]) => fields.category.add(new Option(label, id)));
-  if (!weeklyCategories.some(([id]) => id === category)) {
-    fields.category.add(new Option(weekCategoryLabel(category), category ?? ""));
-  }
-  fields.category.value = category ?? "";
+  const category = eventToEdit ? eventToEdit.category
+    : weeklyCategories.find((item) => item.id === "study")?.id || weeklyCategories[0]?.id || "uncategorized";
+  renderWeekCategoryOptions(category);
   for (const [field, first, last] of [[fields.start, 0, 1440 - weekTimeStep], [fields.end, weekTimeStep, 1440]]) {
     field.replaceChildren();
     for (let minutes = first; minutes <= last; minutes += weekTimeStep) {
@@ -2355,7 +2519,7 @@ function validateWeekEvent(record, ignoredEvent = null) {
     return "Выберите действительную дату этой недели.";
   }
   if (!record.title) return "Введите название события: одних пробелов недостаточно.";
-  if (!weeklyCategories.some(([id]) => id === record.category)
+  if (!categoryOptions().some(([id]) => id === record.category)
     && (!ignoredEvent || record.category !== ignoredEvent.category)) return "Выберите категорию события.";
   if (record.title.length > Math.max(60, ignoredEvent?.title.length || 0)
     || record.description.length > Math.max(240, ignoredEvent?.description?.length || 0)) return "Название — до 60 символов, описание — до 240; длинные сохранённые значения можно сохранить без сокращения.";
@@ -2388,6 +2552,8 @@ function submitWeekEvent(event) {
   weekEventError.hidden = !error;
   if (error) return;
   const editedEvent = editingWeekEvent;
+  try { checkWeeklyCategories(); }
+  catch (error) { showEventStorageError(weekEventError, error.message); return; }
   const updatedEvent = editedEvent
     ? { ...editedEvent, ...record }
     : { id: `created-${crypto.randomUUID()}`, ...record };
@@ -2953,6 +3119,12 @@ function confirmDeletion() {
 
 function dismissDialog() {
   if (restoreNeedsReload) return;
+  if (activeDialog === categoryDeleteDialog) { returnToWeeklyCategories(); return; }
+  if (activeDialog === categoryDialog) {
+    pendingCategoryDeletion = null;
+    openDialog(weekEventDialog, null, manageCategoriesButton);
+    return;
+  }
   if (activeDialog === restoreDialog) {
     backupReadToken += 1;
     pendingRestore = null;
@@ -3367,7 +3539,7 @@ backupFile.addEventListener("change", prepareBackupRestore);
 restoreConfirm.addEventListener("click", confirmBackupRestore);
 document.querySelector("#reload-after-restore").addEventListener("click", () => window.location.reload());
 
-for (const dialog of [creationDialog, cardDialog, listDialog, filtersDialog, thoughtDialog, thoughtDeleteDialog, historyDeleteDialog, settingsDialog, dayEraseDialog, templatesDialog, templateDialog, templateDeleteDialog, templateFutureDialog, restoreDialog, weekEventDialog, weekDeleteDialog, weekSettingsDialog]) {
+for (const dialog of [creationDialog, cardDialog, listDialog, filtersDialog, thoughtDialog, thoughtDeleteDialog, historyDeleteDialog, settingsDialog, dayEraseDialog, templatesDialog, templateDialog, templateDeleteDialog, templateFutureDialog, restoreDialog, weekEventDialog, weekDeleteDialog, weekSettingsDialog, categoryDialog, categoryDeleteDialog]) {
   dialog.addEventListener("click", (event) => {
     if (event.target === dialog || event.target.closest("[data-close-dialog]")) dismissDialog();
     else if (event.target.closest("[data-back-to-list]")) returnToDayList();
@@ -3406,6 +3578,7 @@ loadYearScale();
 loadWeekSettings();
 loadYearEvents();
 loadWeeklyEvents();
+loadWeeklyCategories();
 loadThoughtPlacements();
 showCalendarYear(currentYear);
 loadHistory();
