@@ -2067,6 +2067,16 @@ let displayedWeekDate = null;
 let preferredWeekday = 0;
 let yearlyReturnContext = null;
 const weeklyDayKeys = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+const weeklyCategories = [
+  ["uncategorized", "Без категории"], ["study", "Учёба"], ["work", "Работа"],
+  ["project", "Проект"], ["personal", "Личное"], ["finance", "Финансы"],
+];
+
+function weekCategoryLabel(category) {
+  if (category === undefined) return "Без категории (не задана)";
+  return weeklyCategories.find(([id]) => id === category)?.[1]
+    ?? `Сохранённая категория: ${category || "(пустая строка)"}`;
+}
 const weekSettingsDialog = document.querySelector("#week-settings");
 const weekSettingsButton = document.querySelector("#open-week-settings");
 const firstDaySelect = document.querySelector("#first-day-select");
@@ -2313,6 +2323,13 @@ function openWeekEventForm(eventToEdit = null, opener = addWeekEventButton, init
     fields.date.add(new Option(formatDate(date), date));
   });
   fields.date.value = eventToEdit?.date || initialSlot?.date || displayedWeekDate;
+  const category = eventToEdit ? eventToEdit.category : "study";
+  fields.category.replaceChildren();
+  weeklyCategories.forEach(([id, label]) => fields.category.add(new Option(label, id)));
+  if (!weeklyCategories.some(([id]) => id === category)) {
+    fields.category.add(new Option(weekCategoryLabel(category), category ?? ""));
+  }
+  fields.category.value = category ?? "";
   for (const [field, first, last] of [[fields.start, 0, 1440 - weekTimeStep], [fields.end, weekTimeStep, 1440]]) {
     field.replaceChildren();
     for (let minutes = first; minutes <= last; minutes += weekTimeStep) {
@@ -2338,6 +2355,8 @@ function validateWeekEvent(record, ignoredEvent = null) {
     return "Выберите действительную дату этой недели.";
   }
   if (!record.title) return "Введите название события: одних пробелов недостаточно.";
+  if (!weeklyCategories.some(([id]) => id === record.category)
+    && (!ignoredEvent || record.category !== ignoredEvent.category)) return "Выберите категорию события.";
   if (record.title.length > Math.max(60, ignoredEvent?.title.length || 0)
     || record.description.length > Math.max(240, ignoredEvent?.description?.length || 0)) return "Название — до 60 символов, описание — до 240; длинные сохранённые значения можно сохранить без сокращения.";
   if (!Number.isFinite(record.start) || !Number.isFinite(record.end) || record.end <= record.start) {
@@ -2360,6 +2379,10 @@ function submitWeekEvent(event) {
     colour: fields.colour.value,
     description: fields.description.value.trim(),
   };
+  // Preserve an absent legacy field until a category is explicitly selected.
+  if (!editingWeekEvent || Object.hasOwn(editingWeekEvent, "category") || fields.category.value !== "") {
+    record.category = fields.category.value;
+  }
   const error = validateWeekEvent(record, editingWeekEvent);
   weekEventError.textContent = error;
   weekEventError.hidden = !error;
@@ -2433,8 +2456,9 @@ function renderWeekEvents() {
     card.style.height = `${(event.end - event.start) / 1440 * 100}%`;
     card.style.setProperty("--weekly-event-colour", event.colour);
     const time = `${formatWeekTime(event.start)}–${formatWeekTime(event.end)}`;
-    card.setAttribute("aria-label", `Редактировать: ${event.title}, ${formatDate(event.date)}, ${time}${event.description ? ", " + event.description : ""}`);
-    for (const [className, text] of [["weekly-event-time", time], ["weekly-event-name", event.title], ["weekly-event-note", event.description ?? ""]]) {
+    const category = weekCategoryLabel(event.category);
+    card.setAttribute("aria-label", `Редактировать: ${event.title}, ${formatDate(event.date)}, ${time}, ${category}${event.description ? ", " + event.description : ""}`);
+    for (const [className, text] of [["weekly-event-time", time], ["weekly-event-name", event.title], ["weekly-event-note", event.description || category]]) {
       const span = document.createElement("span");
       span.className = className;
       span.textContent = text;

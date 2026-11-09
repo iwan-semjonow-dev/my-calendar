@@ -182,7 +182,10 @@
           </button>
         </header>
         <form class="yearly-form" id="week-event-form" novalidate>
-          <label class="yearly-field">Дата<select name="date" required></select></label>
+          <div class="weekly-event-times">
+            <label class="yearly-field">Дата<select name="date" required></select></label>
+            <label class="yearly-field">Категория<select name="category"></select></label>
+          </div>
           <label class="yearly-field">Название<input name="title" required maxlength="60" placeholder="Например: тренировка" /></label>
           <div class="weekly-event-times">
             <label class="yearly-field">Начало<select name="start" required></select></label>
