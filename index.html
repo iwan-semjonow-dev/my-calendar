@@ -189,6 +189,10 @@
               <button class="day-secondary" id="manage-week-categories" type="button">Категории</button>
             </div>
           </div>
+          <label class="yearly-field" id="week-template-field">Создать из шаблона
+            <select id="week-template-select"></select>
+            <span class="day-dialog-help" id="week-template-help">Шаблон не меняет дату и время события.</span>
+          </label>
           <label class="yearly-field">Название<input name="title" required maxlength="60" placeholder="Например: тренировка" /></label>
           <div class="weekly-event-times">
             <label class="yearly-field">Начало<select name="start" required></select></label>
@@ -201,8 +205,10 @@
           </div>
           <label class="yearly-field">Описание<textarea name="description" maxlength="240" placeholder="Необязательно"></textarea></label>
           <p class="weekly-event-error" id="week-event-error" role="alert" hidden></p>
+          <p class="day-dialog-help" id="week-template-notice" role="status" hidden></p>
           <footer class="day-dialog-footer">
             <button class="day-secondary weekly-delete" id="delete-week-event" type="button" hidden>Удалить</button>
+            <button class="day-secondary" id="save-week-template" type="button">Сохранить как шаблон</button>
             <button class="day-secondary" type="button" data-close-dialog>Отмена</button>
             <button class="day-primary" type="submit">Сохранить событие</button>
           </footer>

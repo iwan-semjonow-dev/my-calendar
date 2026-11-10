@@ -2466,6 +2466,132 @@ function setWeekEventColour(colour) {
   });
 }
 
+const weeklyTemplateStorageKey = "my-calendar-year-templates-v1";
+const weekTemplateSelect = document.querySelector("#week-template-select");
+const weekTemplateNotice = document.querySelector("#week-template-notice");
+let weekTemplates = [];
+let weekTemplateSnapshot;
+let weekTemplateReadError = false;
+let appliedWeekTemplate = null;
+let beforeWeekTemplate = null;
+let appliedWeekTemplateValue = "";
+
+function weeklyTemplateCategory(template) {
+  return template.type ?? template.category ?? "uncategorized";
+}
+
+function parseWeeklyTemplates(raw) {
+  if (raw === null) return [];
+  const items = JSON.parse(raw);
+  if (!Array.isArray(items) || items.some((item) => !item || typeof item !== "object" || Array.isArray(item)
+    || typeof item.title !== "string" || !item.title.trim()
+    || ["description", "type", "category"].some((key) => item[key] !== undefined && typeof item[key] !== "string")
+    || (item.colour !== undefined && typeof item.colour !== "string"))) {
+    throw new Error("Хранилище недельных шаблонов повреждено или не поддерживается.");
+  }
+  return items;
+}
+
+function checkWeekTemplates() {
+  if (weekTemplateReadError) throw new Error("Не удалось прочитать шаблоны. Закройте и снова откройте форму после восстановления доступа или данных.");
+  if (localStorage.getItem(weeklyTemplateStorageKey) !== weekTemplateSnapshot) {
+    throw new Error("Шаблоны изменились в другой вкладке. Скопируйте черновик и снова откройте форму для загрузки актуальных данных.");
+  }
+}
+
+function renderWeekTemplates() {
+  weekTemplateSelect.replaceChildren(new Option(weekTemplates.length ? "Без шаблона" : "Шаблонов пока нет", ""));
+  weekTemplates.forEach((template, index) => {
+    weekTemplateSelect.add(new Option(`${template.title} · ${weekCategoryLabel(weeklyTemplateCategory(template))}`, String(index)));
+  });
+  weekTemplateSelect.disabled = weekTemplateReadError || !weekTemplates.length;
+}
+
+function setWeekTextFields(title, description) {
+  const fields = weekEventForm.elements;
+  const input = document.createElement(/[\r\n]/.test(title) ? "textarea" : "input");
+  input.name = "title";
+  input.required = true;
+  input.placeholder = fields.title.placeholder;
+  input.maxLength = Math.max(60, title.length);
+  input.value = title;
+  fields.title.replaceWith(input);
+  fields.description.maxLength = Math.max(240, description.length);
+  fields.description.value = description;
+}
+
+weekTemplateSelect.addEventListener("change", () => {
+  if (activeDialog !== weekEventDialog || editingWeekEvent || restoreNeedsReload) return;
+  const fields = weekEventForm.elements;
+  const help = document.querySelector("#week-template-help");
+  if (weekTemplateSelect.value === "") {
+    if (beforeWeekTemplate) {
+      setWeekTextFields(beforeWeekTemplate.title, beforeWeekTemplate.description);
+      renderWeekCategoryOptions(beforeWeekTemplate.category);
+      setWeekEventColour(beforeWeekTemplate.colour);
+    }
+    appliedWeekTemplate = null;
+    beforeWeekTemplate = null;
+    appliedWeekTemplateValue = "";
+    help.textContent = "Шаблон не меняет дату и время события.";
+    return;
+  }
+  try { checkWeekTemplates(); checkWeeklyCategories(); }
+  catch (error) {
+    weekTemplateSelect.value = appliedWeekTemplateValue;
+    showEventStorageError(weekTemplateNotice, error.message);
+    return;
+  }
+  const template = weekTemplates[Number(weekTemplateSelect.value)];
+  if (!template) return;
+  beforeWeekTemplate ??= { title: fields.title.value, description: fields.description.value, category: fields.category.value, colour: fields.colour.value };
+  const category = weeklyTemplateCategory(template);
+  const defaultColour = weeklyCategories.find((item) => item.id === category)?.defaultColour;
+  const colour = /^#[\da-f]{6}$/i.test(template.colour || "") ? template.colour
+    : /^#[\da-f]{6}$/i.test(defaultColour || "") ? defaultColour : "#687582";
+  appliedWeekTemplate = { title: template.title, description: template.description ?? "", category, colour };
+  setWeekTextFields(appliedWeekTemplate.title, appliedWeekTemplate.description);
+  renderWeekCategoryOptions(category);
+  setWeekEventColour(colour);
+  appliedWeekTemplateValue = weekTemplateSelect.value;
+  help.textContent = `Шаблон заполнил название, категорию, цвет и описание.${typeof template.timeHint === "string" && /^\d{2}:\d{2}$/.test(template.timeHint) ? ` Обычное время: ${template.timeHint}.` : ""}${Number.isFinite(template.duration) && template.duration > 0 ? ` Обычная длительность: ${template.duration} мин.` : ""} Дата и время остались выбранными здесь.`;
+  showEventStorageError(weekTemplateNotice);
+  fields.title.focus({ preventScroll: true });
+});
+
+document.querySelector("#save-week-template").addEventListener("click", () => {
+  if (activeDialog !== weekEventDialog || restoreNeedsReload) return;
+  const fields = weekEventForm.elements;
+  const title = fields.title.value.trim();
+  if (!title) { showEventStorageError(weekTemplateNotice, "Сначала укажите название события, не только пробелы."); fields.title.focus(); return; }
+  const type = fields.category.value;
+  const description = fields.description.value.trim();
+  try {
+    checkWeekTemplates();
+    checkWeeklyCategories();
+    if (weekTemplates.some((item) => item.title === title && weeklyTemplateCategory(item) === type && (item.description ?? "") === description)) {
+      showEventStorageError(weekTemplateNotice, "Такой шаблон уже сохранён. Само событие не изменилось.");
+      return;
+    }
+    // Hints retain exact saved minutes, independently of the current input increment.
+    const minutes = (value) => /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(value) ? Number(value.slice(0, 2)) * 60 + Number(value.slice(3)) : value === "24:00" ? 1440 : NaN;
+    const start = minutes(fields.start.value);
+    const end = minutes(fields.end.value);
+    const template = { title, type, description, colour: fields.colour.value, calendar: "week",
+      duration: Number.isFinite(start) && end > start ? end - start : null,
+      timeHint: Number.isFinite(start) && start < 1440 ? fields.start.value : null };
+    const next = [...weekTemplates, template];
+    const raw = JSON.stringify(next);
+    localStorage.setItem(weeklyTemplateStorageKey, raw);
+    weekTemplates = next;
+    weekTemplateSnapshot = raw;
+    const selected = weekTemplateSelect.value;
+    renderWeekTemplates();
+    weekTemplateSelect.value = selected;
+    showEventStorageError(weekTemplateNotice, "Шаблон сохранён. Само событие не сохранено этим действием.");
+  } catch (error) { showEventStorageError(weekTemplateNotice, `Не удалось сохранить шаблон. ${error.message} Черновик сохранён.`); }
+});
+
 function openWeekEventForm(eventToEdit = null, opener = addWeekEventButton, initialSlot = null) {
   if (weekView.hidden || activeDialog || restoreNeedsReload) return;
   if (eventToEdit && !weeklyEvents.includes(eventToEdit)) return;
@@ -2473,19 +2599,28 @@ function openWeekEventForm(eventToEdit = null, opener = addWeekEventButton, init
   pendingWeekDeletion = null;
   deleteWeekEventButton.hidden = !eventToEdit;
   weekEventForm.reset();
+  appliedWeekTemplate = null;
+  beforeWeekTemplate = null;
+  appliedWeekTemplateValue = "";
+  weekTemplates = [];
+  weekTemplateReadError = false;
+  showEventStorageError(weekTemplateNotice);
+  try {
+    weekTemplateSnapshot = localStorage.getItem(weeklyTemplateStorageKey);
+    weekTemplates = parseWeeklyTemplates(weekTemplateSnapshot);
+  } catch {
+    weekTemplateReadError = true;
+    showEventStorageError(weekTemplateNotice, "Не удалось загрузить недельные шаблоны. Хранилище недоступно или повреждено; оно не будет перезаписано. Обычное событие можно сохранить отдельно.");
+  }
+  renderWeekTemplates();
+  document.querySelector("#week-template-field").hidden = Boolean(eventToEdit);
+  document.querySelector("#week-template-help").textContent = "Шаблон не меняет дату и время события. «Без шаблона» возвращает поля до применения.";
   weekEventError.hidden = true;
   weekEventError.textContent = "";
   document.querySelector("#week-event-title").textContent = eventToEdit ? "Редактировать событие" : "Новое событие";
   weekEventForm.querySelector('[type="submit"]').textContent = eventToEdit ? "Сохранить изменения" : "Сохранить событие";
   const fields = weekEventForm.elements;
-  // A saved multiline title must not pass through a single-line input.
-  const titleField = document.createElement(eventToEdit?.title.includes("\n") || eventToEdit?.title.includes("\r") ? "textarea" : "input");
-  titleField.name = "title";
-  titleField.required = true;
-  titleField.placeholder = fields.title.placeholder;
-  titleField.maxLength = Math.max(60, eventToEdit?.title.length || 0);
-  fields.title.replaceWith(titleField);
-  fields.description.maxLength = Math.max(240, eventToEdit?.description?.length || 0);
+  setWeekTextFields(eventToEdit?.title || "", eventToEdit?.description || "");
   fields.date.replaceChildren();
   getSelectedWeek(displayedWeekDate).filter(Boolean).forEach((date) => {
     fields.date.add(new Option(formatDate(date), date));
@@ -2515,18 +2650,19 @@ function openWeekEventForm(eventToEdit = null, opener = addWeekEventButton, init
 }
 
 function validateWeekEvent(record, ignoredEvent = null) {
+  const source = ignoredEvent || appliedWeekTemplate;
   if (!getSelectedWeek(displayedWeekDate).includes(record.date) || !isCalendarDate(record.date)) {
     return "Выберите действительную дату этой недели.";
   }
   if (!record.title) return "Введите название события: одних пробелов недостаточно.";
   if (!categoryOptions().some(([id]) => id === record.category)
-    && (!ignoredEvent || record.category !== ignoredEvent.category)) return "Выберите категорию события.";
-  if (record.title.length > Math.max(60, ignoredEvent?.title.length || 0)
-    || record.description.length > Math.max(240, ignoredEvent?.description?.length || 0)) return "Название — до 60 символов, описание — до 240; длинные сохранённые значения можно сохранить без сокращения.";
+    && (!source || record.category !== source.category)) return "Выберите категорию события.";
+  if (record.title.length > Math.max(60, source?.title.length || 0)
+    || record.description.length > Math.max(240, source?.description?.length || 0)) return "Название — до 60 символов, описание — до 240; длинные сохранённые значения можно сохранить без сокращения.";
   if (!Number.isFinite(record.start) || !Number.isFinite(record.end) || record.end <= record.start) {
     return `Выберите начало и конец с шагом ${weekTimeStep} минут. Конец должен быть позже начала, не позднее 24:00.`;
   }
-  if (!weeklyColours.some(([colour]) => colour === record.colour) && record.colour !== ignoredEvent?.colour) return "Выберите цвет события.";
+  if (!weeklyColours.some(([colour]) => colour === record.colour) && record.colour !== source?.colour) return "Выберите цвет события.";
   const conflict = weeklyEvents.find((event) => event !== ignoredEvent && event.date === record.date && record.start < event.end && record.end > event.start);
   return conflict ? `${formatDate(record.date)}: интервал пересекается с «${conflict.title}» (${formatWeekTime(conflict.start)}–${formatWeekTime(conflict.end)}). Выберите другое время.` : "";
 }
