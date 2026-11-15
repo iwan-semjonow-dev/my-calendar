@@ -2753,19 +2753,21 @@ function renderWeekEvents() {
     card.type = "button";
     card.setAttribute("aria-haspopup", "dialog");
     card.className = "weekly-event";
-    card.classList.toggle("compact", (event.end - event.start) * 35 / 60 <= 62);
     card.style.top = `${event.start / 1440 * 100}%`;
     card.style.height = `${(event.end - event.start) / 1440 * 100}%`;
     card.style.setProperty("--weekly-event-colour", event.colour);
     const time = `${formatWeekTime(event.start)}–${formatWeekTime(event.end)}`;
     const category = weekCategoryLabel(event.category);
     card.setAttribute("aria-label", `Редактировать: ${event.title}, ${formatDate(event.date)}, ${time}, ${category}${event.description ? ", " + event.description : ""}`);
+    const content = document.createElement("span");
+    content.className = "weekly-event-content";
     for (const [className, text] of [["weekly-event-time", time], ["weekly-event-name", event.title], ["weekly-event-note", event.description || category]]) {
       const span = document.createElement("span");
       span.className = className;
       span.textContent = text;
-      card.append(span);
+      content.append(span);
     }
+    card.append(content);
     card.addEventListener("click", () => openWeekEventForm(event, card));
     weekEventElements.set(event, card);
     column.append(card);
