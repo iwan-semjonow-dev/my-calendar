@@ -2296,10 +2296,6 @@ function applyWeekRange() {
   const scroller = weekDaysContainer.parentElement;
   const timeline = weekDaysContainer.querySelector(".weekly-timeline");
   const pixelsPerMinute = timeline.getBoundingClientRect().height / 1440;
-  const headerHeight = weekDaysContainer.querySelector(".weekly-day-title").getBoundingClientRect().height;
-  const frameHeight = scroller.offsetHeight - scroller.clientHeight;
-  // Keep the fixed time scale and existing 840px panel cap; only the viewport changes.
-  scroller.style.maxHeight = `${Math.min(840, headerHeight + (weekRange.rangeEnd - weekRange.rangeStart) * pixelsPerMinute + frameHeight)}px`;
   scroller.scrollTop = weekRange.rangeStart * pixelsPerMinute;
   document.querySelector("#week-range-info").textContent = `Основной диапазон: ${formatWeekTime(weekRange.rangeStart)}–${formatWeekTime(weekRange.rangeEnd)}`;
 }
@@ -2930,6 +2926,7 @@ function openSelectedWeek(key, opener) {
   app.inert = true;
   weekView.hidden = false;
   weekView.inert = false;
+  weekView.scrollTop = 0;
   document.body.classList.add("viewing-week");
   window.scrollTo({ top: 0, left: 0, behavior: "instant" });
   document.querySelector("#week-title").focus({ preventScroll: true });
