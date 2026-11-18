@@ -2292,11 +2292,52 @@ function syncWeekRangeOptions() {
   [...rangeEndSelect.options].forEach((option) => { option.disabled = Number(option.value) <= start; });
 }
 
+const weekGridScroller = weekDaysContainer.parentElement;
+let weekGridHeight = 0;
+let weekGridViewportHeight = 0;
+let weekGridMinute = 0;
+let weekGridResizeFrame = 0;
+
+function resizeWeekGrid(scrollToRange = false) {
+  if (weekView.hidden) return;
+  const heading = weekDaysContainer.querySelector(".weekly-day-title");
+  if (!heading) return;
+  // clientHeight excludes borders and the horizontal scrollbar.
+  const viewportHeight = weekGridScroller.clientHeight;
+  const availableHeight = viewportHeight - heading.getBoundingClientRect().height;
+  if (availableHeight <= 0) return;
+  const height = Math.round(Math.max(360, availableHeight) * 1440 / Math.max(60, weekRange.rangeEnd - weekRange.rangeStart));
+  const pixelsPerMinute = height / 1440;
+  const minute = scrollToRange ? weekRange.rangeStart : weekGridMinute;
+  if (height !== weekGridHeight || scrollToRange) {
+    if (height !== weekGridHeight) {
+      weekDaysContainer.style.setProperty("--week-hour-height", `${height / 24}px`);
+      weekGridHeight = height;
+    }
+    weekGridScroller.scrollTop = minute * pixelsPerMinute;
+  }
+  weekGridViewportHeight = viewportHeight;
+  weekGridMinute = weekGridScroller.scrollTop / pixelsPerMinute;
+}
+
+function scheduleWeekGridResize() {
+  if (weekView.hidden || weekGridResizeFrame) return;
+  weekGridResizeFrame = requestAnimationFrame(() => {
+    weekGridResizeFrame = 0;
+    resizeWeekGrid();
+  });
+}
+
+weekGridScroller.addEventListener("scroll", () => {
+  // Retain the time before a resize can clamp the old grid's scroll position.
+  if (!weekView.hidden && weekGridHeight && weekGridScroller.clientHeight === weekGridViewportHeight) {
+    weekGridMinute = weekGridScroller.scrollTop / (weekGridHeight / 1440);
+  }
+}, { passive: true });
+new ResizeObserver(scheduleWeekGridResize).observe(weekGridScroller);
+
 function applyWeekRange() {
-  const scroller = weekDaysContainer.parentElement;
-  const timeline = weekDaysContainer.querySelector(".weekly-timeline");
-  const pixelsPerMinute = timeline.getBoundingClientRect().height / 1440;
-  scroller.scrollTop = weekRange.rangeStart * pixelsPerMinute;
+  resizeWeekGrid(true);
   document.querySelector("#week-range-info").textContent = `Основной диапазон: ${formatWeekTime(weekRange.rangeStart)}–${formatWeekTime(weekRange.rangeEnd)}`;
 }
 
