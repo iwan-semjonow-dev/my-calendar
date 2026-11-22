@@ -2298,7 +2298,7 @@ let weekGridViewportHeight = 0;
 let weekGridMinute = 0;
 let weekGridResizeFrame = 0;
 
-function resizeWeekGrid(scrollToRange = false) {
+function resizeWeekGrid(scrollToRange = false, behavior = "instant") {
   if (weekView.hidden) return;
   const heading = weekDaysContainer.querySelector(".weekly-day-title");
   if (!heading) return;
@@ -2314,7 +2314,7 @@ function resizeWeekGrid(scrollToRange = false) {
       weekDaysContainer.style.setProperty("--week-hour-height", `${height / 24}px`);
       weekGridHeight = height;
     }
-    weekGridScroller.scrollTop = minute * pixelsPerMinute;
+    weekGridScroller.scrollTo({ top: minute * pixelsPerMinute, behavior });
   }
   weekGridViewportHeight = viewportHeight;
   weekGridMinute = weekGridScroller.scrollTop / pixelsPerMinute;
@@ -2336,9 +2336,18 @@ weekGridScroller.addEventListener("scroll", () => {
 }, { passive: true });
 new ResizeObserver(scheduleWeekGridResize).observe(weekGridScroller);
 
+const weekRangeButton = document.querySelector("#week-return-to-range");
+weekRangeButton.addEventListener("click", () => {
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  resizeWeekGrid(true, reduceMotion ? "instant" : "smooth");
+});
+
 function applyWeekRange() {
   resizeWeekGrid(true);
-  document.querySelector("#week-range-info").textContent = `Основной диапазон: ${formatWeekTime(weekRange.rangeStart)}–${formatWeekTime(weekRange.rangeEnd)}`;
+  const label = `${formatWeekTime(weekRange.rangeStart)}–${formatWeekTime(weekRange.rangeEnd)}`;
+  document.querySelector("#week-range-info").textContent = `Основной диапазон: ${label}`;
+  weekRangeButton.textContent = `Диапазон · ${label}`;
+  weekRangeButton.setAttribute("aria-label", `Вернуться к диапазону ${label}`);
 }
 
 function openWeekSettings() {

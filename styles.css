@@ -56,7 +56,7 @@ body.viewing-week { overflow: hidden; background: #f4f7fb; }
 .weekly-nav-button:hover { border-color: #bbc9d9; background: #fafcff; }
 .weekly-nav-button:focus-visible { outline: 2px solid #315be9; outline-offset: 2px; }
 .weekly-nav-button[aria-disabled="true"] { opacity: .45; cursor: default; }
-.weekly-today { margin-left: auto; }
+#open-week-settings { margin-left: auto; }
 .weekly-crumb { display: flex; flex-wrap: wrap; gap: 8px 16px; padding: 8px 2px 10px; color: #718095; font-size: 12px; }
 .weekly-crumb strong { color: #26364c; font-size: 14px; font-weight: 600; }
 .weekly-notice { margin: 0 0 12px; padding: 10px 13px; color: #4a5b77; border: 1px solid #dbe6ff; border-radius: 10px; background: #f1f5ff; font-size: 12px; }
