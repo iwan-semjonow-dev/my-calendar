@@ -2252,6 +2252,8 @@ const weekSettingsError = document.querySelector("#week-settings-error");
 const rangeStartSelect = document.querySelector("#range-start-select");
 const rangeEndSelect = document.querySelector("#range-end-select");
 const timeStepSelect = document.querySelector("#time-step-select");
+const weekBackgroundInput = document.querySelector("#week-background");
+const defaultWeekBackground = weekBackgroundInput.defaultValue;
 let weekTimeStep = 30;
 const validRangeStarts = Array.from({ length: 24 }, (_, hour) => hour * 60);
 const validRangeEnds = Array.from({ length: 24 }, (_, hour) => (hour + 1) * 60);
@@ -2276,12 +2278,29 @@ function savedWeekRange(settings) {
   return rangeEnd > rangeStart ? { rangeStart, rangeEnd } : { rangeStart: 360, rangeEnd: 1320 };
 }
 
+function savedWeekBackground(settings) {
+  const value = settings.calendarBackground;
+  return typeof value === "string" && /^#[\da-f]{6}$/i.test(value) ? value.toLowerCase() : defaultWeekBackground;
+}
+
+function applyWeekBackground(colour) {
+  weekDaysContainer.style.setProperty("--week-background", colour);
+  if (colour === defaultWeekBackground) {
+    delete weekDaysContainer.dataset.gridLines;
+    return;
+  }
+  const [red, green, blue] = colour.slice(1).match(/../g).map(channel => parseInt(channel, 16));
+  const brightness = 0.299 * red + 0.587 * green + 0.114 * blue;
+  weekDaysContainer.dataset.gridLines = brightness < 128 ? "light" : "dark";
+}
+
 function loadWeekSettings() {
   try {
     const settings = readYearSettings();
     firstWeekDay = savedFirstWeekDay(settings);
     weekRange = savedWeekRange(settings);
     weekTimeStep = savedWeekTimeStep(settings);
+    applyWeekBackground(savedWeekBackground(settings));
   } catch { /* Display defaults; opening settings reports the read error. */ }
 }
 
@@ -2353,6 +2372,7 @@ function applyWeekRange() {
 function openWeekSettings() {
   if (weekView.hidden || activeDialog || restoreNeedsReload) return;
   weekSettingsSnapshot = undefined;
+  weekBackgroundInput.value = weekDaysContainer.style.getPropertyValue("--week-background") || defaultWeekBackground;
   firstDaySelect.value = firstWeekDay;
   timeStepSelect.value = String(weekTimeStep);
   let range = weekRange;
@@ -2363,6 +2383,7 @@ function openWeekSettings() {
     firstDaySelect.value = savedFirstWeekDay(settings);
     timeStepSelect.value = String(savedWeekTimeStep(settings));
     range = savedWeekRange(settings);
+    weekBackgroundInput.value = savedWeekBackground(settings);
   } catch {
     showEventStorageError(weekSettingsError, "Не удалось прочитать настройки. Исходные данные не изменены. Проверьте доступ к хранилищу или исправьте повреждённые данные и повторите попытку.");
   }
@@ -2392,9 +2413,16 @@ function saveWeekSettings() {
   try {
     const raw = localStorage.getItem(settingsStorageKey);
     const settings = parseYearSettings(raw);
-    if (weekSettingsSnapshot !== undefined && raw !== weekSettingsSnapshot) {
+    if (weekSettingsSnapshot === undefined) {
+      showEventStorageError(weekSettingsError, "Не удалось проверить исходные настройки. Закройте настройки и откройте их снова.");
+      return;
+    }
+    if (raw !== weekSettingsSnapshot) {
       showEventStorageError(weekSettingsError, "Настройки изменились в другой вкладке. Сохранение остановлено. Запомните выбранные значения, закройте и снова откройте настройки, чтобы загрузить актуальные данные.");
       return;
+    }
+    if (!Object.hasOwn(settings, "calendarBackground") || weekBackgroundInput.value !== savedWeekBackground(settings)) {
+      settings.calendarBackground = weekBackgroundInput.value;
     }
     localStorage.setItem(settingsStorageKey, JSON.stringify({ ...settings, firstDay: selected, rangeStart, rangeEnd, timeStep }));
   } catch {
@@ -2402,6 +2430,7 @@ function saveWeekSettings() {
     return;
   }
   firstWeekDay = selected;
+  applyWeekBackground(weekBackgroundInput.value);
   weekRange = { rangeStart, rangeEnd };
   weekTimeStep = timeStep;
   renderSelectedWeek(displayedWeekDate, getSelectedWeek(displayedWeekDate));

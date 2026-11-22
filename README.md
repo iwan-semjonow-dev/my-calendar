@@ -16,6 +16,8 @@ Select a day number to open the week containing that exact date, including its y
 
 After scrolling to other hours, use **Диапазон** in the weekly toolbar to return to the start of the saved range. The button shows both boundaries and keeps the same day columns in view.
 
+In weekly Settings, use **Фон календаря** to choose a colour for the time scale and day columns. Save to apply it. Event cards keep their own colours.
+
 Weekly event forms also support **Save as template** and **Create from template**. A template fills the title, category, colour, and description without changing the selected date or interval; its usual time and duration are hints only. Applying a template changes only the draft. Selecting **No template** restores the content from before application, and an event is created only after saving and passing validation. Saving a template is a separate action and does not save the event. Weekly templates are stored locally, separately from the current yearly template library, and are not included in yearly backups.
 
 ### Events and daily details
