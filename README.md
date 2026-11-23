@@ -93,7 +93,7 @@ Short cards show less text to fit their duration. Open the card for full details
 
 localStorage belongs to the browser, profile, and origin used to open the app. For a web address, the origin is its protocol, host, and port; opening the app at a different origin uses separate storage. Retention requires storage to be available and each save to succeed. Clearing browser data can delete the saved calendar.
 
-Local storage is not a backup and does not automatically synchronize devices. Copying the application files or running `git push` does not transfer localStorage data. Use a yearly JSON backup to move yearly data between browsers, profiles, or devices.
+Local storage is not a backup and does not automatically synchronize devices. Copying the application files or running `git push` does not transfer localStorage data. Use a calendar JSON backup to move saved data between browsers, profiles, or devices.
 
 Storage behaviour for direct `file://` access varies between browsers; see [Run locally](#run-locally) before relying on saved data.
 
@@ -109,9 +109,7 @@ The app reports storage errors and blocks conflicting writes when saved records 
 
 The suggested filename is `my-calendar-backup-YYYY-MM-DD.json`, using the export date in UTC. Your browser may adjust the name if a file with that name already exists.
 
-Export reads the latest saved data for all years, regardless of the displayed year: events and template links, undated thoughts and their order, scheduled thoughts and information needed to return them, templates, independent history snapshots, day fills and outlines, and settings. Drafts, temporary selections, and an unsaved scale preview are excluded. Export does not change the stored calendar.
-
-The shared `settings` object carries weekly preferences such as the grid background into the backup. Weekly events, categories, and weekly templates stay in local storage and are excluded from yearly backups.
+Export reads the latest saved data for all years and weeks. It includes yearly events and template links, undated and scheduled thoughts, yearly templates, independent history snapshots, day fills and outlines, and the separate weekly events, categories, and templates. The shared `settings` object includes the weekly grid preferences and background. Drafts, temporary selections, and an unsaved scale preview are excluded. Export does not change the stored calendar.
 
 If a section cannot be read, contains unsupported or damaged data, or changes during collection, export reports an error and does not start a download. It does not silently substitute empty data to produce an incomplete backup.
 
@@ -124,19 +122,21 @@ Before replacing a calendar, export its current data to a separate file if you m
 3. Review the filename and the summary of records to be restored.
 4. Select Restore data (**Восстановить данные**) to replace the saved calendar, or Cancel (**Отмена**) to leave it unchanged.
 
-Confirmation replaces saved yearly data for **all years and settings**; records are not merged. Before confirmation, selecting or reading a file does not change calendar data. Cancelling, closing the confirmation, pressing Escape, or clicking its backdrop does not write changes. Unrelated browser storage keys are left alone.
+Check the scope shown before confirming. A full backup (version 2) replaces both calendars for all years and the shared settings. An empty weekly list clears that collection. A backup made with the built-in category list restores that default, distinct from an intentionally empty list. A yearly backup (version 1) replaces yearly data and shared settings while preserving the receiving calendar's weekly events, categories, and templates.
+
+Records are not merged. Selecting a file, cancelling, closing the confirmation, pressing Escape, or clicking its backdrop does not write changes. Unrelated browser storage keys are left alone.
 
 After all sections have been written and verified, the page reloads with the restored data and settings. Temporary selections, drafts, and the unsaved scale preview are reset. You can select the same file again if another attempt is needed.
 
 ### Move data to another device
 
-Export a backup on the source device, transfer the JSON file yourself, then restore it in My Calendar on the receiving device. Restoration replaces the receiving calendar; this is a manual transfer, not two-way synchronization.
+Export a backup on the source device, transfer the JSON file yourself, then restore it in My Calendar on the receiving device. This is a manual transfer.
 
 The JSON file contains user records in plain text and is not encrypted by the app. Store and share it with the same care as the calendar's contents.
 
 ### Errors and recovery limits
 
-The current backup format is `my-calendar-backup`, version `1`. Restoration checks the required settings, events, thought placements, day marks, templates, thoughts, and history sections using the app's supported record formats. Invalid JSON, an unsupported format or version, missing sections, and damaged required data are rejected before writing. Compatibility with every older application or backup version is not guaranteed.
+The current backup format is `my-calendar-backup`, version `2`. In addition to the version 1 sections, it requires `weeklyEvents`, `weeklyCategories`, and `weeklyTemplates`. Invalid JSON, an unsupported format or version, missing sections, and damaged required data are rejected before writing.
 
 If saved data changes after the confirmation was prepared, including in another tab, restoration stops and asks you to cancel and select the file again. Avoid editing the calendar in other tabs while restoring.
 

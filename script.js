@@ -619,20 +619,12 @@ function readCalendarBackup() {
   }
   const backup = {
     format: "my-calendar-backup",
-    version: 1,
+    version: 2,
     exportedAt: new Date().toISOString(),
-    settings: read(settingsStorageKey, "Настройки", parseYearSettings),
-    events: read(eventStorageKey, "События", (raw) => {
-      parseYearEvents(raw);
-      // Export the original tuples, not the rendered events with attached thoughts.
-      return raw === null ? {} : JSON.parse(raw);
-    }),
-    thoughtPlacements: read(placementStorageKey, "Размещения мыслей", parseThoughtPlacements),
-    dayMarks: read(dayMarkStorageKey, "Отметки дней", parseDayMarks),
-    templates: read(templateStorageKey, "Шаблоны", parseTemplates),
-    thoughts: read(thoughtStorageKey, "Мысли", parseThoughts),
-    history: read(historyStorageKey, "История", parseHistory),
   };
+  for (const [name, key, parse, label] of backupSections(backup.version)) {
+    backup[name] = read(key, label, parse);
+  }
   // An explicitly saved empty v2 history takes precedence over legacy history.
   if (snapshots.get(historyStorageKey) === null) {
     backup.history = read(legacyHistoryStorageKey, "История", parseHistory);
@@ -685,16 +677,26 @@ function exportCalendarBackup() {
   }
 }
 
-function backupSections() {
-  return [
+function backupSections(version) {
+  const sections = [
     ["settings", settingsStorageKey, parseYearSettings, "настройки"],
-    ["events", eventStorageKey, parseYearEvents, "события"],
+    ["events", eventStorageKey, (raw) => {
+      parseYearEvents(raw);
+      // Keep original tuples, including template links and opaque metadata.
+      return raw === null ? {} : JSON.parse(raw);
+    }, "годовые события"],
     ["thoughtPlacements", placementStorageKey, parseThoughtPlacements, "размещения мыслей"],
     ["dayMarks", dayMarkStorageKey, parseDayMarks, "отметки дней"],
     ["templates", templateStorageKey, parseTemplates, "шаблоны"],
     ["thoughts", thoughtStorageKey, parseThoughts, "мысли"],
     ["history", historyStorageKey, parseHistory, "история"],
   ];
+  if (version === 2) sections.push(
+    ["weeklyEvents", weeklyEventStorageKey, parseWeeklyEvents, "недельные события"],
+    ["weeklyCategories", weeklyCategoryStorageKey, raw => raw === null ? null : parseWeeklyCategories(raw), "недельные категории"],
+    ["weeklyTemplates", weeklyTemplateStorageKey, parseWeeklyTemplates, "недельные шаблоны"],
+  );
+  return sections;
 }
 
 function validateCalendarBackup(text) {
@@ -702,24 +704,28 @@ function validateCalendarBackup(text) {
   try { backup = JSON.parse(text); }
   catch { throw new Error("Файл не содержит корректный JSON."); }
   if (!backup || typeof backup !== "object" || Array.isArray(backup)
-    || backup.format !== "my-calendar-backup" || backup.version !== 1) {
-    throw new Error("Неподдерживаемый формат или версия резервной копии. Нужен my-calendar-backup, версия 1.");
+    || backup.format !== "my-calendar-backup" || ![1, 2].includes(backup.version)) {
+    throw new Error("Неподдерживаемый формат или версия резервной копии. Нужен my-calendar-backup версии 1 или 2.");
   }
-  for (const [name, , parse, label] of backupSections()) {
+  const writes = new Map();
+  for (const [name, key, parse, label] of backupSections(backup.version)) {
     if (!Object.hasOwn(backup, name)) throw new Error(`В файле отсутствует обязательный раздел: ${label}.`);
-    try { parse(JSON.stringify(backup[name])); }
+    // An absent category key activates the built-ins. A stored [] disables them.
+    const raw = key === weeklyCategoryStorageKey && backup[name] === null ? null : JSON.stringify(backup[name]);
+    try { parse(raw); }
     catch { throw new Error(`Некорректные данные в разделе: ${label}.`); }
+    writes.set(key, raw);
   }
   // Older readers do not require this informational timestamp.
   if (Object.hasOwn(backup, "exportedAt")
     && (typeof backup.exportedAt !== "string" || !Number.isFinite(Date.parse(backup.exportedAt)))) {
     throw new Error("Некорректное время создания резервной копии.");
   }
-  return backup;
+  return { backup, writes };
 }
 
-function snapshotRestoreStorage() {
-  return new Map([...backupSections().map(([, key]) => key), legacyHistoryStorageKey]
+function snapshotRestoreStorage(writes) {
+  return new Map([...writes.keys(), legacyHistoryStorageKey]
     .map((key) => [key, localStorage.getItem(key)]));
 }
 
@@ -742,13 +748,16 @@ async function prepareBackupRestore() {
     try { text = await file.text(); }
     catch { throw new Error("Не удалось прочитать файл. Выберите его ещё раз."); }
     if (token !== backupReadToken || activeDialog !== settingsDialog) return;
-    const backup = validateCalendarBackup(text);
+    const { backup, writes } = validateCalendarBackup(text);
     let original;
-    try { original = snapshotRestoreStorage(); }
+    try { original = snapshotRestoreStorage(writes); }
     catch { throw new Error("Хранилище недоступно. Восстановление не подготовлено, данные не изменены."); }
-    pendingRestore = { original, writes: new Map(backupSections().map(([name, key]) => [key, JSON.stringify(backup[name])])) };
+    pendingRestore = { original, writes };
     const count = Object.values(backup.events).reduce((sum, records) => sum + records.length, 0);
-    document.querySelector("#backup-restore-summary").textContent = `Файл: ${file.name}\nСохранённые данные годового календаря за ВСЕ годы будут заменены данными файла. Это не объединение.\nСобытия: ${count}; мысли: ${backup.thoughts.length}; размещения мыслей: ${backup.thoughtPlacements.length}; шаблоны: ${backup.templates.length}; снимки истории: ${backup.history.length}; даты с отметками: ${Object.keys(backup.dayMarks).length}. Настройки также будут заменены.\nПосле успешной записи страница перезагрузится; временный выбор и несохранённый масштаб будут сброшены.`;
+    const weeklySummary = backup.version === 1
+      ? "Годовая копия версии 1. Недельные события, категории и шаблоны останутся без изменений."
+      : `Будут заменены недельные события за все годы (${backup.weeklyEvents.length}), категории (${backup.weeklyCategories?.length ?? "встроенный список"}) и недельные шаблоны (${backup.weeklyTemplates.length}).`;
+    document.querySelector("#backup-restore-summary").textContent = `Файл: ${file.name}\nГодовые данные за все годы и общие настройки будут заменены. Записи не объединяются.\nГодовые события: ${count}; мысли: ${backup.thoughts.length}; размещения мыслей: ${backup.thoughtPlacements.length}; годовые шаблоны: ${backup.templates.length}; снимки истории: ${backup.history.length}; даты с отметками: ${Object.keys(backup.dayMarks).length}.\n${weeklySummary}\nПосле восстановления страница перезагрузится.`;
     showEventStorageError(restoreError);
     restoreConfirm.disabled = false;
     openDialog(restoreDialog, null, document.querySelector("#cancel-backup-restore"));
@@ -774,7 +783,7 @@ function rollbackBackupRestore(original, writes, attempted) {
   for (const [key, raw] of original) {
     try { if (localStorage.getItem(key) === raw) continue; }
     catch { /* An unreadable key cannot be claimed as restored. */ }
-    unresolved.push(backupSections().find(([, candidate]) => candidate === key)?.[3] || "старая история");
+    unresolved.push(backupSections(2).find(([, candidate]) => candidate === key)?.[3] || "старая история");
   }
   return unresolved;
 }
@@ -812,7 +821,8 @@ function confirmBackupRestore() {
       if (!restoreStorageMatches(expected)) throw new Error("conflict");
       if (raw === original.get(key)) continue;
       attempted.push(key);
-      localStorage.setItem(key, raw);
+      if (raw === null) localStorage.removeItem(key);
+      else localStorage.setItem(key, raw);
       expected.set(key, raw);
     }
     if (!restoreStorageMatches(expected)) throw new Error("verification failed");
