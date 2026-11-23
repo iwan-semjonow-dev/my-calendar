@@ -1,24 +1,16 @@
 # My Calendar
 
-My Calendar is a visual yearly planning app inspired by a large paper calendar. It brings the months of a year into one connected view.
+My Calendar combines a paper-inspired year overview with a weekly grid for planning events by time.
 
-The project is a working yearly prototype in active development. The application interface is in Russian.
+The project is in active development. The application interface is in Russian.
 
-## Current features
+## Yearly planning
 
 ### Yearly view and navigation
 
 The calendar has twelve equally sized vertical month columns, with valid dates and weekdays, leap-year handling, and distinct styling for weekends, past days, and today. It opens on the current system year. Browse other years with the navigation buttons, or use Today to return to the current local date, scroll it into view, and briefly highlight it.
 
 The grid fills the available panel width on wide screens. Narrower windows use horizontal scrolling inside the calendar, keeping all twelve months in one row. Compact, Standard, and Large scales change text size and the widths of the date number and weekday areas; row height stays the same. Scale changes can be previewed, cancelled, or saved.
-
-Select a day number to open the week containing that exact date, including its year. In weekly Settings (**Настройки**), choose any of the seven weekdays as the first day (Monday by default). Saving keeps the selected date and shows its week in the new order; cancelling leaves the order unchanged. Weekly settings also provide a main viewing range, initially 06:00–22:00. Choose whole-hour boundaries within 00:00–24:00, with the end later than the start. Saving scales the main range to the available time area inside the panel and scrolls to its start where possible. The scale reserves at least 360 pixels for that range, so very low panels require scrolling within it. Resizing preserves the time being viewed where scroll limits allow. The weekly panel fills the window space remaining below its controls and messages, adapting when they wrap or the window changes size. Scrolling stays inside the panel; in very low windows, the weekly view also scrolls to keep the controls and calendar accessible. The full day and all events remain available by scrolling, including events outside or crossing the range. These choices are stored locally in the shared settings object and are included in yearly backups, while weekly events remain outside those backups. Use the previous and next arrows to move by one week, or Today (**Сегодня**) to select the current local date and its week. The selected day moves with the week, retaining its weekday where possible; at the supported date boundary, the nearest valid day is selected. The weekly view includes a local-time grid from 00:00 to 24:00, with hourly labels and a choice of 15- or 30-minute divisions in Settings (30 minutes by default). The saved step controls grid lines, new time choices, and click intervals without changing the height of an hour. Existing events keep their exact times; off-step times remain available as saved-time options when editing other fields. Day headings stay visible during vertical scrolling; the time scale stays visible during horizontal scrolling inside the panel. Use Add event (**＋ Добавить событие**) to create an event on a valid date in the displayed week, with a title, colour, optional description, and start and end times in the selected increments. Categories (Uncategorized, Study, Work, Project, Personal, and Finance) are independent of event colours. The Categories dialog lets you add names of up to 32 characters and delete categories with confirmation. Names are checked for duplicates without regard to case. Deletion keeps linked events, their colours, and other fields, assigning them to Uncategorized. Categories are stored locally and are not included in yearly backups. New events start with Study (or the first available category, then Uncategorized if none remain) and blue; changing either selection leaves the other unchanged. Existing missing or unknown categories and saved colours are preserved when editing other fields. Events must end later than they start, at or before 24:00; overlapping intervals on the same date are rejected, while touching intervals are allowed. Weekly events are saved in localStorage after successful writes and restored when the page is reopened, using full calendar dates across weeks and years. They are separate from yearly events and are not included in yearly backups. Open a weekly event with a click or keyboard to edit its date within the displayed week, title, times, colour, and description. Changes apply only after saving and passing the same interval checks; the event being edited does not conflict with itself. Cancelling leaves it unchanged. Delete a weekly event from its editor after confirming its saved title, date, and interval. Cancelling deletion returns to the unchanged editing draft. Click an empty area of a valid day in the time grid to start a new event at the beginning of the clicked interval, with an initial duration of one selected step. The clicked column supplies the date; the event is created only after saving. The Add event button starts at 18:00 on the selected day and ends one selected step later. The return button (**← Годовой календарь**) restores the original yearly view, scroll position, and focus even after browsing other weeks. Dates beyond the supported years 0001–9999 are shown as unavailable, and navigation stops at the boundary weeks. While marking days or selecting dates for a batch, day numbers continue to act on that mode instead of opening a week. Weekly navigation does not change saved data or the scope of yearly backups.
-
-After scrolling to other hours, use **Диапазон** in the weekly toolbar to return to the start of the saved range. The button shows both boundaries and keeps the same day columns in view.
-
-In weekly Settings, use **Фон календаря** to choose a colour for the time scale and day columns. Save to apply it. Event cards keep their own colours.
-
-Weekly event forms also support **Save as template** and **Create from template**. A template fills the title, category, colour, and description without changing the selected date or interval; its usual time and duration are hints only. Applying a template changes only the draft. Selecting **No template** restores the content from before application, and an event is created only after saving and passing validation. Saving a template is a separate action and does not save the event. Weekly templates are stored locally, separately from the current yearly template library, and are not included in yearly backups.
 
 ### Events and daily details
 
@@ -50,6 +42,38 @@ A template link does not automatically update events. After saving changes to an
 
 Manually add an event to the chronological history strip as an independent snapshot of its date, title, colour, and description. Editing, moving, or deleting the original event, or applying template changes to it, does not alter the snapshot. Deleting a snapshot requires confirmation and does not delete the source event.
 
+## Weekly planning
+
+### Open a week and return to the year
+
+Click the **day number** in the yearly calendar to open the week containing that date. While a marking tool or a batch date selection is active, the number serves that operation. The arrows (**Предыдущая неделя** and **Следующая неделя**) move one week at a time and keep the selected weekday where possible. Navigation stops at years 0001 and 9999, with out-of-range days unavailable. **Сегодня** selects today's local date. **← Годовой календарь** returns to the original year, restores the scroll position, and focuses the day number you opened, even after browsing other weeks.
+
+### Create, edit, or delete an event
+
+- Use **＋ Добавить событие** to start at 18:00 on the selected date, or click a free interval in the grid to use that column's date and the start of that interval. Both methods propose one time step. Enter a title, adjust the fields, and choose **Сохранить событие**.
+- Events on the same date may touch but cannot overlap. With a 15-minute step, an event following 09:00–10:00 can start at 10:00. Starting it at 09:45 would overlap. The end must be later than the start and may be as late as 24:00.
+- Click a card or focus it and press Enter to edit its title, date within the displayed week, times, category, colour, or optional description. **Сохранить изменения** checks the interval against the other events. **Отмена** discards the draft. To delete the event, choose **Удалить**, check the saved title, date, and interval, then confirm with **Удалить**. Cancelling the confirmation returns to your draft.
+
+### Choose categories and reuse templates
+
+Choose **Категория** and **Цвет** independently. The initial categories are **Учёба**, **Работа**, **Проект**, **Личное**, and **Финансы**. New events start in blue with **Учёба** selected, falling back to the first available category or **Без категории**.
+
+Open **Категории** to add a name with **Добавить** (up to 32 characters, unique regardless of case). Confirming **Удалить категорию** moves its events to **Без категории** and preserves their colours and other details. Editing unrelated fields also preserves older events' missing or unknown categories and saved colours.
+
+In the event form, **Сохранить как шаблон** saves the current fields as a weekly template. The event itself still needs its own save. In a new event, choose a template under **Создать из шаблона** to fill the title, category, colour, and description. The selected date and both times stay in place. The template's usual time and duration are hints. Adjust the filled fields before saving, or choose **Без шаблона** to restore their values from before you applied the template.
+
+### Adjust the grid and return to your range
+
+Open **Настройки**, make your choices, and select **Сохранить** to apply them or **Отмена** to discard them.
+
+- **Первый день недели** sets which weekday appears first (Monday by default). The selected date stays selected when the columns change order.
+- **Шаг времени** sets the grid divisions, click intervals, and time choices to 15 or 30 minutes (default 30). Existing events keep their exact times, including off-step times in the editor.
+- **Основной диапазон** sets the scale. Choose whole-hour boundaries within 00:00–24:00, initially 06:00–22:00. The grid scales that range to the available panel height, allowing at least 360 pixels for it, and scrolls to its start where possible. All 24 hours remain reachable, including events outside or crossing the range.
+- **Диапазон · 06:00–22:00** in the toolbar shows the saved boundaries. After scrolling to other hours, press it to return to the start of that range with the same day columns in view.
+- **Фон календаря** sets the background colour of the time scale and day columns after saving. Event cards keep their own colours.
+
+Short cards show less text to fit their duration. Open the card for full details. On small screens, scroll inside the panel with the day headings and time scale in view. In very low windows the weekly view also scrolls to keep the controls reachable. Resizing preserves the time in view as far as the scroll limits allow.
+
 ## Local storage
 
 | Data | Storage | After a page reload |
@@ -59,9 +83,9 @@ Manually add an event to the chronological history strip as an independent snaps
 | Undated thoughts and their order | localStorage | Retained after a successful save |
 | Scheduled thoughts and their source identity | localStorage | Retained after a successful save |
 | Day fills and outlines | localStorage | Retained after a successful save |
-| Event templates | localStorage | Retained after a successful save |
-| Yearly scale setting | localStorage | Retained after a successful save |
-| Weekly events | localStorage | Retained after a successful save |
+| Yearly event templates | localStorage | Retained after a successful save |
+| Shared settings (yearly scale, first weekday, time step, main range, weekly background) | localStorage | Retained after a successful save |
+| Weekly events, categories, and weekly templates | localStorage | Retained after a successful save |
 | Filter selection | In memory | Reset |
 | Displayed year | In memory | Current system year opens again |
 | Unsaved form edits and unconfirmed date or event selections | In memory | Discarded |
@@ -69,7 +93,7 @@ Manually add an event to the chronological history strip as an independent snaps
 
 localStorage belongs to the browser, profile, and origin used to open the app. For a web address, the origin is its protocol, host, and port; opening the app at a different origin uses separate storage. Retention requires storage to be available and each save to succeed. Clearing browser data can delete the saved calendar.
 
-Local storage is not a backup and does not automatically synchronize devices. Copying the application files or running `git push` does not transfer localStorage data. Use a yearly JSON backup to move yearly data between browsers, profiles, or devices. Weekly events also depend on the browser, profile, and origin; they are not yet included in these backups.
+Local storage is not a backup and does not automatically synchronize devices. Copying the application files or running `git push` does not transfer localStorage data. Use a yearly JSON backup to move yearly data between browsers, profiles, or devices.
 
 Storage behaviour for direct `file://` access varies between browsers; see [Run locally](#run-locally) before relying on saved data.
 
@@ -79,7 +103,7 @@ The app reports storage errors and blocks conflicting writes when saved records 
 
 ### Create a backup
 
-1. Open Settings (**Настройки**).
+1. In the yearly view, open Settings (**Настройки**).
 2. Select Create backup (**Создать резервную копию**).
 3. Check the browser's downloads and keep the downloaded `.json` file in a safe place. The app confirms that downloading was started, not that the file was saved to disk.
 
@@ -87,13 +111,15 @@ The suggested filename is `my-calendar-backup-YYYY-MM-DD.json`, using the export
 
 Export reads the latest saved data for all years, regardless of the displayed year: events and template links, undated thoughts and their order, scheduled thoughts and information needed to return them, templates, independent history snapshots, day fills and outlines, and settings. Drafts, temporary selections, and an unsaved scale preview are excluded. Export does not change the stored calendar.
 
+The shared `settings` object carries weekly preferences such as the grid background into the backup. Weekly events, categories, and weekly templates stay in local storage and are excluded from yearly backups.
+
 If a section cannot be read, contains unsupported or damaged data, or changes during collection, export reports an error and does not start a download. It does not silently substitute empty data to produce an incomplete backup.
 
 ### Restore a backup
 
 Before replacing a calendar, export its current data to a separate file if you may need it later.
 
-1. Open Settings (**Настройки**) and select Restore data (**Восстановить данные**).
+1. In the yearly view, open Settings (**Настройки**) and select Restore data (**Восстановить данные**).
 2. Choose a JSON backup file. The app reads and validates the complete file before opening confirmation.
 3. Review the filename and the summary of records to be restored.
 4. Select Restore data (**Восстановить данные**) to replace the saved calendar, or Cancel (**Отмена**) to leave it unchanged.
@@ -141,4 +167,4 @@ The app uses HTML5, CSS3, JavaScript, and the Web Storage API (`localStorage`).
 
 ## Project direction
 
-See [Project Vision](PROJECT_VISION.md) for the broader product direction. It includes goals beyond the current application, such as detailed weekly planning, synchronization, and AI assistance. Those capabilities are not implemented. The features and storage behaviour described in this README reflect the current yearly calendar.
+See [Project Vision](PROJECT_VISION.md) for the broader product direction, including plans for synchronization and AI assistance.
