@@ -6,36 +6,27 @@ The idea for My Calendar grew out of the experience of using a large paper yearl
 
 ## Product Direction
 
-My Calendar is planned as a visual planning tool that brings together long-term yearly planning, detailed weekly scheduling, undated ideas, and a lasting history of meaningful events. The product should support different levels of detail without losing the broader view of time.
+My Calendar brings together long-term yearly planning, weekly scheduling, undated ideas, and a history of meaningful events. The aim is to move between these levels of detail while keeping the broader view of time.
 
-## Planned Main Areas
+## Current planning areas
 
 ### 1. Thoughts
 
-The Thoughts area is planned for the top of the interface. It will hold ideas that do not yet have a date, time, or priority. A thought may later be moved into the calendar when the user is ready to schedule it.
+The strip above the yearly calendar holds undated ideas. Users can place a thought on a date and return it to the strip later.
 
 ### 2. Yearly Calendar
 
-The Yearly Calendar is planned as the main screen. It will display all 12 months at the same time, arranged as vertical columns. Events in this view are date-based and do not store start or end times. Time-specific planning belongs to the weekly calendar.
+The yearly calendar opens first, with all twelve months arranged in vertical columns. Its events have a date. Selecting a day number opens the corresponding week for timed planning.
 
 ### 3. History
 
-The History area is planned below the yearly calendar. It will allow users to preserve important events manually. Each history entry will be stored as an independent snapshot, so later changes to the original event will not alter the saved historical record.
+The history strip below the yearly calendar holds snapshots that users save from individual events. A snapshot keeps its contents even if the original event changes or is deleted.
 
 ### 4. Weekly Calendar
 
-The Weekly Calendar is planned as an additional detailed mode. Events in this view will include a date, start time, and end time. Possible time overlaps must be checked before an event is saved.
+The weekly grid holds events with a date, start time, and end time. It checks for overlapping intervals on the same date before saving.
 
-## Planned Supporting Features
-
-- Event templates without fixed dates for reusable event structures
-- Independent visual day markers, such as fill and outline, that can represent separate information layers
-- Web Storage API (`localStorage`) for local-first use
-- Manual backup and restore controlled by the user
-- Future synchronization between devices
-- A future AI assistant for creating events from natural-language instructions
-
-Automatic actions and bulk changes must require explicit user confirmation before they are applied.
+The two calendars have separate template libraries. The yearly view also supports independent day fills and outlines. Both calendars save locally and share a manual JSON backup. See the [README](README.md) for the current workflows and recovery limits.
 
 ## Design Principles
 
@@ -47,16 +38,8 @@ Automatic actions and bulk changes must require explicit user confirmation befor
 - **Local-first operation:** Make core planning available without depending on a remote service.
 - **Readable on laptops and large monitors:** Maintain clarity across the intended screen sizes.
 
-## Initial Technical Direction
+## Future directions
 
-The initial project is planned with:
+Ideas for future development include synchronization between devices and an AI assistant that could turn natural-language instructions into event drafts. Any future automation or bulk change should require explicit confirmation before it alters the calendar.
 
-- HTML5
-- CSS3
-- JavaScript
-
-TypeScript, React, backend synchronization, and AI capabilities belong to later stages of development.
-
-## Status
-
-My Calendar is at an early stage of development. The capabilities described in this document represent the planned product direction, not completed functionality. Features will be introduced gradually through separate, verifiable stages.
+The current app uses HTML, CSS, and JavaScript. TypeScript and React are possible future technology choices.

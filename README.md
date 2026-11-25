@@ -2,7 +2,22 @@
 
 My Calendar combines a paper-inspired year overview with a weekly grid for planning events by time.
 
-The project is in active development. The application interface is in Russian.
+The interface is in Russian. A yearly event records what happens on a date. A weekly event reserves a start and end time. They are separate records even when they share a date.
+
+## Run locally
+
+1. Clone the repository, or download and extract its ZIP archive.
+2. From the project folder, open `index.html` in a modern browser. Keep `styles.css` and `script.js` beside it. No installation, build step, or server is required.
+
+Direct-file (`file://`) storage varies by browser. Save a test event and reload before relying on it. If you later serve the same files over HTTP, the calendar saved under the file address may be unavailable there. To carry your data across, [create a backup](#create-a-backup) at the original address and [restore it](#restore-a-backup) at the new one. Use a separate browser profile and artificial records for testing.
+
+### Schedule your first timed event
+
+1. In the yearly overview, find the date and click its **day number** to open that week.
+2. Click **＋ Добавить событие**, enter a title in **Название**, choose **Начало** and **Конец**, then click **Сохранить событие**. The card appears in that day's time column.
+3. Click **← Годовой календарь** to return to the original date. The timed entry stays in the weekly grid.
+
+See [Yearly planning](#yearly-planning) for date-based events and [Weekly planning](#weekly-planning) for time slots, overlap checks, and grid settings.
 
 ## Yearly planning
 
@@ -95,8 +110,6 @@ localStorage belongs to the browser, profile, and origin used to open the app. F
 
 Local storage is not a backup and does not automatically synchronize devices. Copying the application files or running `git push` does not transfer localStorage data. Use a calendar JSON backup to move saved data between browsers, profiles, or devices.
 
-Storage behaviour for direct `file://` access varies between browsers; see [Run locally](#run-locally) before relying on saved data.
-
 The app reports storage errors and blocks conflicting writes when saved records have changed in another tab. Unsaved input remains temporary: copy it before reloading if you need to keep it.
 
 ## Backups and restoration
@@ -119,10 +132,10 @@ Before replacing a calendar, export its current data to a separate file if you m
 
 1. In the yearly view, open Settings (**Настройки**) and select Restore data (**Восстановить данные**).
 2. Choose a JSON backup file. The app reads and validates the complete file before opening confirmation.
-3. Review the filename and the summary of records to be restored.
+3. Review the filename and the summary. Version 2 replaces both calendars for all years and the shared settings. Version 1 replaces yearly data and shared settings while preserving the receiving calendar's weekly events, categories, and templates.
 4. Select Restore data (**Восстановить данные**) to replace the saved calendar, or Cancel (**Отмена**) to leave it unchanged.
 
-Check the scope shown before confirming. A full backup (version 2) replaces both calendars for all years and the shared settings. An empty weekly list clears that collection. A backup made with the built-in category list restores that default, distinct from an intentionally empty list. A yearly backup (version 1) replaces yearly data and shared settings while preserving the receiving calendar's weekly events, categories, and templates.
+In a full backup, an empty weekly list clears that collection. A backup made with the built-in category list restores that default, distinct from an intentionally empty list.
 
 Records are not merged. Selecting a file, cancelling, closing the confirmation, pressing Escape, or clicking its backdrop does not write changes. Unrelated browser storage keys are left alone.
 
@@ -130,7 +143,7 @@ After all sections have been written and verified, the page reloads with the res
 
 ### Move data to another device
 
-Export a backup on the source device, transfer the JSON file yourself, then restore it in My Calendar on the receiving device. This is a manual transfer.
+[Create a backup](#create-a-backup) on the source device and transfer the downloaded JSON file yourself. On the receiving device, open My Calendar and follow [Restore a backup](#restore-a-backup). Later edits stay on the device where you make them.
 
 The JSON file contains user records in plain text and is not encrypted by the app. Store and share it with the same care as the calendar's contents.
 
@@ -143,17 +156,6 @@ If saved data changes after the confirmation was prepared, including in another 
 If a write fails, the app attempts to restore the original values and verifies the result. Detected changes from another tab are not overwritten during rollback. If all original values are confirmed, you can retry or cancel. If the original state cannot be confirmed, the app reports the affected sections and blocks further writes from the page until reload; it does not report a successful restoration.
 
 localStorage has no transaction spanning multiple keys. Checks cannot prevent every concurrent-write race, and closing the page or browser during restoration can leave a partial result. After an interruption, keep the backup file, reload the page, inspect the data, and repeat restoration if needed. The app does not guarantee recovery from a browser crash or interruption midway through writing.
-
-## Run locally
-
-1. Clone the repository, or download the ZIP archive and extract it.
-2. Open `index.html` in a modern browser.
-
-No dependency installation or build step is required. Keep `index.html`, `styles.css`, and `script.js` together in the project folder.
-
-When opening the app directly through a `file://` URL, localStorage availability and behaviour can vary between browsers. Check that saving and reloading work in the browser you use before relying on retained data.
-
-Use a separate browser profile with artificial data for local testing to keep test records isolated from your working calendar.
 
 ## Technology and files
 
