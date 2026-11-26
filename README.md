@@ -2,12 +2,13 @@
 
 My Calendar combines a paper-inspired year overview with a weekly grid for planning events by time.
 
-The interface is in Russian. A yearly event records what happens on a date. A weekly event reserves a start and end time. They are separate records even when they share a date.
+A yearly event records what happens on a date. A weekly event reserves a start and end time. They are separate records even when they share a date.
 
 ## Run locally
 
 1. Clone the repository, or download and extract its ZIP archive.
-2. From the project folder, open `index.html` in a modern browser. Keep `styles.css` and `script.js` beside it. No installation, build step, or server is required.
+2. From the project folder, open `index.html` in a modern browser. Keep `styles.css`, `i18n.js` and `script.js` beside it. No installation, build step, or server is required.
+3. The interface starts in Russian. In either calendar, open **Настройки → Язык интерфейса** / **Einstellungen → Sprache**, choose **Русский** or **Deutsch**, and save. Both views switch immediately and remember your choice. Your entries and custom category names keep their original text.
 
 Direct-file (`file://`) storage varies by browser. Save a test event and reload before relying on it. If you later serve the same files over HTTP, the calendar saved under the file address may be unavailable there. To carry your data across, [create a backup](#create-a-backup) at the original address and [restore it](#restore-a-backup) at the new one. Use a separate browser profile and artificial records for testing.
 
@@ -99,7 +100,7 @@ Short cards show less text to fit their duration. Open the card for full details
 | Scheduled thoughts and their source identity | localStorage | Retained after a successful save |
 | Day fills and outlines | localStorage | Retained after a successful save |
 | Yearly event templates | localStorage | Retained after a successful save |
-| Shared settings (yearly scale, first weekday, time step, main range, weekly background) | localStorage | Retained after a successful save |
+| Shared settings (language, yearly scale, first weekday, time step, main range, weekly background) | localStorage | Retained after a successful save |
 | Weekly events, categories, and weekly templates | localStorage | Retained after a successful save |
 | Filter selection | In memory | Reset |
 | Displayed year | In memory | Current system year opens again |
@@ -166,6 +167,7 @@ The app uses HTML5, CSS3, JavaScript, and the Web Storage API (`localStorage`).
 | `index.html` | Page structure and dialogs |
 | `styles.css` | Layout and visual styles |
 | `script.js` | Calendar rendering and interactions |
+| `i18n.js` | Russian and German interface messages |
 
 ## Project direction
 

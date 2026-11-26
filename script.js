@@ -205,6 +205,9 @@ const scaleButtons = [...settingsDialog.querySelectorAll("[data-year-scale]")];
 const settingsError = document.querySelector("#year-settings-error");
 let yearScale = "standard";
 let yearScaleDraft = yearScale;
+let yearSettingsSnapshot;
+const yearLanguage = document.querySelector("#year-language");
+const weekLanguage = document.querySelector("#week-language");
 const eventStorageKey = "my-calendar-year-events-v2";
 const storedEventRecords = new WeakMap();
 const eventLoadError = document.querySelector("#event-load-error");
@@ -237,7 +240,7 @@ function loadDayMarks() {
     dayMarks = parseDayMarks(dayMarkStorageSnapshot);
   } catch {
     dayMarkStorageBlocked = true;
-    showEventStorageError(dayMarkError, "Не удалось загрузить отметки дней: данные повреждены или хранилище недоступно. Запись отметок заблокирована, исходные данные не изменены. После восстановления перезагрузите страницу.");
+    showPersistentMessage(dayMarkError, "Не удалось загрузить отметки дней: данные повреждены или хранилище недоступно. Запись отметок заблокирована, исходные данные не изменены. После восстановления перезагрузите страницу.");
   }
 }
 
@@ -268,7 +271,7 @@ function saveDayMark(cell) {
   if (!isCalendarDate(date) || Number(date.slice(0, 4)) !== displayedYear) return;
   try {
     if (localStorage.getItem(dayMarkStorageKey) !== dayMarkStorageSnapshot) {
-      showEventStorageError(dayMarkError, "Отметки изменились в другой вкладке. Запись остановлена: перезагрузите страницу, чтобы не затереть изменения.");
+      showPersistentMessage(dayMarkError, "Отметки изменились в другой вкладке. Запись остановлена: перезагрузите страницу, чтобы не затереть изменения.");
       return;
     }
     if (dayMarks[date]?.[activeCalendarTool] === activeCalendarToolColour) return;
@@ -278,7 +281,7 @@ function saveDayMark(cell) {
     dayMarkStorageSnapshot = serialized;
     dayMarks = next;
   } catch {
-    showEventStorageError(dayMarkError, "Не удалось сохранить отметку дня. Отметки не изменены. Проверьте доступ к хранилищу и повторите попытку.");
+    showPersistentMessage(dayMarkError, "Не удалось сохранить отметку дня. Отметки не изменены. Проверьте доступ к хранилищу и повторите попытку.");
     return;
   }
   showEventStorageError(dayMarkError);
@@ -292,16 +295,16 @@ function openDayErase(cell) {
   const mark = dayMarks[key] || {};
   const count = events[key]?.length || 0;
   const choices = [
-    mark.fill && ["fill", "Только заливку"],
-    mark.ring && ["ring", "Только обводку"],
-    count && ["events", count === 1 ? "Событие" : "Все события дня"],
+    mark.fill && ["fill", t("Только заливку")],
+    mark.ring && ["ring", t("Только обводку")],
+    count && ["events", count === 1 ? t("Событие") : t("Все события дня")],
   ].filter(Boolean);
   pendingDayErase = { key, part: null, completed: [] };
-  document.querySelector("#day-mark-erase-title").textContent = "Что удалить?";
+  document.querySelector("#day-mark-erase-title").textContent = t("Что удалить?");
   document.querySelector("#day-mark-erase-date").textContent = formatDate(key);
-  dayEraseHelp.textContent = `В этой ячейке: ${[mark.fill && "заливка", mark.ring && "обводка", count && `записей: ${count}`].filter(Boolean).join(", ") || "нет доступных слоёв"}.`;
+  dayEraseHelp.textContent = t`В этой ячейке: ${[mark.fill && t("заливка"), mark.ring && t("обводка"), count && t`записей: ${count}`].filter(Boolean).join(", ") || t("нет доступных слоёв")}.`;
   dayEraseActions.replaceChildren();
-  if (choices.length > 1) choices.push(["all", "Удалить всё"]);
+  if (choices.length > 1) choices.push(["all", t("Удалить всё")]);
   for (const [part, label] of choices) {
     const button = document.createElement("button");
     button.type = "button";
@@ -312,7 +315,7 @@ function openDayErase(cell) {
   }
   dayEraseActions.hidden = false;
   dayEraseConfirm.hidden = true;
-  dayEraseConfirm.textContent = "Удалить";
+  dayEraseConfirm.textContent = t("Удалить");
   showEventStorageError(dayEraseError);
   openDialog(dayEraseDialog, cell.querySelector("button[data-date]"), dayEraseCancel);
 }
@@ -326,13 +329,13 @@ function chooseDayErase(part) {
   const count = events[key]?.length || 0;
   const mark = dayMarks[key] || {};
   const layers = [
-    (part === "fill" || part === "all") && mark.fill && "заливка",
-    (part === "ring" || part === "all") && mark.ring && "обводка",
-    (part === "events" || part === "all") && count && `события и размещённые мысли — записей: ${count}`,
+    (part === "fill" || part === "all") && mark.fill && t("заливка"),
+    (part === "ring" || part === "all") && mark.ring && t("обводка"),
+    (part === "events" || part === "all") && count && t`события и размещённые мысли — записей: ${count}`,
   ].filter(Boolean);
-  dayEraseHelp.textContent = `Будут удалены: ${layers.join(", ")}. Размещённые мысли не возвращаются в ленту.`;
+  dayEraseHelp.textContent = t`Будут удалены: ${layers.join(", ")}. Размещённые мысли не возвращаются в ленту.`;
   if ((part === "events" || part === "all") && count) {
-    document.querySelector("#day-mark-erase-title").textContent = "Подтвердите удаление";
+    document.querySelector("#day-mark-erase-title").textContent = t("Подтвердите удаление");
     dayEraseCancel.focus({ preventScroll: true });
   } else executeDayErase();
 }
@@ -346,8 +349,8 @@ function checkDayEraseStorage(part) {
       [thoughtStorageKey, thoughtStorageSnapshot, thoughtStorageBlocked]);
   }
   for (const [key, snapshot, blocked] of stores) {
-    if (blocked) throw new Error("Хранилище повреждено или недоступно. Восстановите данные и перезагрузите страницу.");
-    if (localStorage.getItem(key) !== snapshot) throw new Error("Данные изменились в другой вкладке. Перезагрузите страницу перед повторной попыткой.");
+    if (blocked) throw new CalendarStorageError(t("Хранилище повреждено или недоступно. Восстановите данные и перезагрузите страницу."));
+    if (localStorage.getItem(key) !== snapshot) throw new CalendarStorageError(t("Данные изменились в другой вкладке. Перезагрузите страницу перед повторной попыткой."));
   }
 }
 
@@ -356,7 +359,7 @@ function executeDayErase() {
   if (activeDialog !== dayEraseDialog || !pendingDayErase?.part) return;
   const operation = pendingDayErase;
   const { key, part, completed } = operation;
-  let step = "проверка хранилищ";
+  let step = t("проверка хранилищ");
   // Each successful write is committed to memory independently. Never roll back
   // over another tab. A retry derives only the remaining work from this state.
   const write = (label, storageKey, value, commit) => {
@@ -378,13 +381,13 @@ function executeDayErase() {
       // Remove only these placements' recovery copies BEFORE deleting placements.
       // If the next write fails, the placement remains authoritative after reload.
       if (remainingInbox.length !== inbox.length) {
-        write("удаление резервных копий выбранных мыслей", thoughtStorageKey, remainingInbox, (raw) => {
+        write(t("удаление резервных копий выбранных мыслей"), thoughtStorageKey, remainingInbox, (raw) => {
           thoughtStorageSnapshot = raw;
           thoughts = undatedThoughts(remainingInbox);
         });
       }
       if (removed.length) {
-        write(`удаление размещённых мыслей: ${removed.length}`, placementStorageKey,
+        write(t`удаление размещённых мыслей: ${removed.length}`, placementStorageKey,
           thoughtPlacements.filter((item) => !ids.has(item.id)), (raw) => {
             placementStorageSnapshot = raw;
             thoughtPlacements = thoughtPlacements.filter((item) => !ids.has(item.id));
@@ -396,7 +399,7 @@ function executeDayErase() {
       if (normalCount) {
         const next = JSON.parse(eventStorageSnapshot);
         delete next[key];
-        write(`удаление обычных событий: ${normalCount}`, eventStorageKey, next, (raw) => {
+        write(t`удаление обычных событий: ${normalCount}`, eventStorageKey, next, (raw) => {
           eventStorageSnapshot = raw;
           events[key] = (events[key] || []).filter((event) => placedEvents.has(event));
         });
@@ -407,15 +410,15 @@ function executeDayErase() {
     if (parts.length) {
       const nextMark = { ...mark };
       parts.forEach((layer) => { nextMark[layer] = ""; });
-      write(`удаление отметок: ${parts.map((layer) => layer === "fill" ? "заливка" : "обводка").join(", ")}`,
+      write(t`удаление отметок: ${parts.map((layer) => layer === "fill" ? t("заливка") : t("обводка")).join(", ")}`,
         dayMarkStorageKey, { ...dayMarks, [key]: nextMark }, (raw) => {
           dayMarkStorageSnapshot = raw;
           dayMarks = { ...dayMarks, [key]: nextMark };
         });
     }
   } catch (error) {
-    showEventStorageError(dayEraseError, `${completed.length ? `Выполнено: ${completed.join("; ")}.` : "Ничего не удалено."} Не выполнено: ${step}; оставшаяся часть операции остановлена. ${error.message} После устранения проблемы нажмите «Повторить оставшееся». Выполненные шаги при закрытии окна не отменяются.`);
-    dayEraseConfirm.textContent = "Повторить оставшееся";
+    showEventStorageError(dayEraseError, t`${completed.length ? t`Выполнено: ${completed.join("; ")}.` : t("Ничего не удалено.")} Не выполнено: ${step}; оставшаяся часть операции остановлена. ${storageErrorMessage(error)} После устранения проблемы нажмите «Повторить оставшееся». Выполненные шаги при закрытии окна не отменяются.`);
+    dayEraseConfirm.textContent = t("Повторить оставшееся");
     dayEraseCancel.focus({ preventScroll: true });
     return;
   } finally {
@@ -461,7 +464,20 @@ function renderDayRings() {
   }
 }
 
+class CalendarStorageError extends Error {}
+
+function storageErrorMessage(error) {
+  return error instanceof CalendarStorageError ? error.message
+    : t("Проверьте данные, доступ к хранилищу и свободное место.");
+}
+
+function showPersistentMessage(element, key) {
+  showEventStorageError(element, t(key));
+  element.dataset.messageKey = key;
+}
+
 function showEventStorageError(element, message = "") {
+  delete element.dataset.messageKey;
   element.textContent = message;
   element.hidden = !message;
 }
@@ -512,7 +528,7 @@ function loadYearEvents() {
     Object.assign(events, parseYearEvents(eventStorageSnapshot));
   } catch {
     eventStorageBlocked = true;
-    showEventStorageError(eventLoadError, "Не удалось загрузить события: данные повреждены, имеют неподдерживаемый формат или хранилище недоступно. Запись событий заблокирована, исходные данные не изменены. После восстановления данных или доступа перезагрузите страницу.");
+    showPersistentMessage(eventLoadError, "Не удалось загрузить события: данные повреждены, имеют неподдерживаемый формат или хранилище недоступно. Запись событий заблокирована, исходные данные не изменены. После восстановления данных или доступа перезагрузите страницу.");
   }
 }
 
@@ -524,14 +540,14 @@ function saveYearEvents(nextEvents, errorElement) {
   }
   try {
     if (localStorage.getItem(eventStorageKey) !== eventStorageSnapshot) {
-      showEventStorageError(errorElement, "Сохранённые события изменились после загрузки страницы, возможно в другой вкладке. Запись остановлена. Скопируйте несохранённый ввод перед обновлением страницы: он будет потерян при перезагрузке.");
+      showEventStorageError(errorElement, t("Сохранённые события изменились после загрузки страницы, возможно в другой вкладке. Запись остановлена. Скопируйте несохранённый ввод перед обновлением страницы: он будет потерян при перезагрузке."));
       return false;
     }
     const serialized = serializeYearEvents(nextEvents);
     localStorage.setItem(eventStorageKey, serialized);
     eventStorageSnapshot = serialized;
   } catch {
-    showEventStorageError(errorElement, "Не удалось сохранить события. Операция не выполнена: текущие события и несохранённый ввод не изменены. Проверьте доступ к хранилищу и повторите попытку или отмените действие.");
+    showEventStorageError(errorElement, t("Не удалось сохранить события. Операция не выполнена: текущие события и несохранённый ввод не изменены. Проверьте доступ к хранилищу и повторите попытку или отмените действие."));
     return false;
   }
   showEventStorageError(errorElement);
@@ -567,9 +583,10 @@ function applyYearScale(scale) {
 function loadYearScale() {
   try {
     const settings = readYearSettings();
+    setInterfaceLanguage(savedLanguage(settings));
     yearScale = yearScales.includes(settings.yearScale) ? settings.yearScale : "standard";
   } catch {
-    showSettingsError("Не удалось прочитать настройки. Используется обычный масштаб. Исходные данные не изменены.");
+    showSettingsError(t("Не удалось прочитать настройки. Используется обычный масштаб. Исходные данные не изменены."));
   }
   applyYearScale(yearScale);
 }
@@ -579,31 +596,72 @@ function openYearSettings() {
   document.querySelector("#backup-export-status").hidden = true;
   showEventStorageError(document.querySelector("#backup-import-error"));
   document.querySelector("#backup-read-status").hidden = true;
+  yearSettingsSnapshot = undefined;
   yearScaleDraft = yearScale;
+  yearLanguage.value = interfaceLanguage;
+  try {
+    const raw = localStorage.getItem(settingsStorageKey);
+    const settings = parseYearSettings(raw);
+    yearSettingsSnapshot = raw;
+    yearScaleDraft = yearScales.includes(settings.yearScale) ? settings.yearScale : "standard";
+    yearLanguage.value = savedLanguage(settings);
+    showSettingsError();
+  } catch {
+    showSettingsError(t("Не удалось прочитать текущие настройки. Сохранение остановлено, чтобы не затереть исходные данные. Можно повторить попытку или отменить выбор."));
+  }
   applyYearScale(yearScaleDraft);
   settingsButton.setAttribute("aria-expanded", "true");
   openDialog(settingsDialog, settingsButton, settingsDialog.querySelector('[aria-pressed="true"]'));
 }
 
+function saveSettings(snapshot, language, update, errorElement) {
+  try {
+    if (snapshot === undefined) {
+      showEventStorageError(errorElement, t("Не удалось проверить исходные настройки. Закройте настройки и откройте их снова."));
+      return false;
+    }
+    if (localStorage.getItem(settingsStorageKey) !== snapshot) {
+      showEventStorageError(errorElement, t("Настройки изменились в другой вкладке. Сохранение остановлено. Запомните выбранные значения, закройте и снова откройте настройки, чтобы загрузить актуальные данные."));
+      return false;
+    }
+    const settings = parseYearSettings(snapshot);
+    update(settings);
+    if (language !== savedLanguage(settings)) settings.language = language;
+    localStorage.setItem(settingsStorageKey, JSON.stringify(settings));
+    return true;
+  } catch {
+    showEventStorageError(errorElement, t("Не удалось сохранить настройки. Проверьте доступность хранилища и повторите попытку или отмените выбор."));
+    return false;
+  }
+}
+
+function refreshLanguage(language) {
+  if (language === interfaceLanguage) return;
+  setInterfaceLanguage(language);
+  const left = calendarScroll.scrollLeft;
+  renderCalendar(displayedYear);
+  syncYearFilters();
+  calendarScroll.scrollLeft = left;
+  renderThoughts();
+  renderHistory();
+  const placement = thoughtPlacements.find(item => item.id === undoThoughtPlacementId);
+  if (placement) thoughtUndoMessage.textContent = t`Мысль перенесена на ${formatDate(placement.date)}.`;
+  for (const element of document.querySelectorAll("[data-message-key]")) {
+    if (!element.hidden) element.textContent = t(element.dataset.messageKey);
+  }
+}
+
 function saveYearSettings() {
-  if (restoreNeedsReload) return false;
-  if (activeDialog !== settingsDialog) return;
-  let settings;
-  try {
-    settings = readYearSettings();
-  } catch {
-    showSettingsError("Не удалось прочитать текущие настройки. Сохранение остановлено, чтобы не затереть исходные данные. Можно повторить попытку или отменить выбор.");
-    return;
-  }
-  try {
-    localStorage.setItem(settingsStorageKey, JSON.stringify({ ...settings, yearScale: yearScaleDraft }));
-  } catch {
-    showSettingsError("Не удалось сохранить масштаб. Проверьте доступность хранилища и повторите попытку или отмените выбор.");
-    return;
-  }
+  if (restoreNeedsReload || activeDialog !== settingsDialog) return;
+  if (!saveSettings(yearSettingsSnapshot, yearLanguage.value, settings => {
+    if (yearScaleDraft !== (yearScales.includes(settings.yearScale) ? settings.yearScale : "standard")) {
+      settings.yearScale = yearScaleDraft;
+    }
+  }, settingsError)) return;
   yearScale = yearScaleDraft;
   showSettingsError();
   closeDialog();
+  refreshLanguage(yearLanguage.value);
 }
 
 function readCalendarBackup() {
@@ -614,7 +672,7 @@ function readCalendarBackup() {
       snapshots.set(key, raw);
       return parse(raw);
     } catch {
-      throw new Error(`Не удалось прочитать раздел «${label}»: хранилище недоступно или данные повреждены. Копия не создана, исходные данные не изменены.`);
+      throw new CalendarStorageError(t`Не удалось прочитать раздел «${label}»: хранилище недоступно или данные повреждены. Копия не создана, исходные данные не изменены.`);
     }
   }
   const backup = {
@@ -627,7 +685,7 @@ function readCalendarBackup() {
   }
   // An explicitly saved empty v2 history takes precedence over legacy history.
   if (snapshots.get(historyStorageKey) === null) {
-    backup.history = read(legacyHistoryStorageKey, "История", parseHistory);
+    backup.history = read(legacyHistoryStorageKey, t("История"), parseHistory);
   }
   // Detect a concurrent change during collection instead of exporting a mixed snapshot.
   for (const [key, raw] of snapshots) {
@@ -635,10 +693,10 @@ function readCalendarBackup() {
     try {
       current = localStorage.getItem(key);
     } catch {
-      throw new Error("Не удалось проверить хранилище перед скачиванием. Копия не создана, исходные данные не изменены.");
+      throw new CalendarStorageError(t("Не удалось проверить хранилище перед скачиванием. Копия не создана, исходные данные не изменены."));
     }
     if (current !== raw) {
-      throw new Error("Данные изменились во время создания копии. Скачивание не начато; повторите попытку.");
+      throw new CalendarStorageError(t("Данные изменились во время создания копии. Скачивание не начато; повторите попытку."));
     }
   }
   return backup;
@@ -654,7 +712,7 @@ function exportCalendarBackup() {
   try {
     backup = readCalendarBackup();
   } catch (cause) {
-    showEventStorageError(error, cause instanceof Error ? cause.message : "Не удалось прочитать хранилище. Копия не создана.");
+    showEventStorageError(error, cause instanceof CalendarStorageError ? cause.message : t("Не удалось прочитать хранилище. Копия не создана."));
     return;
   }
   let url;
@@ -666,10 +724,10 @@ function exportCalendarBackup() {
     link.hidden = true;
     document.body.append(link);
     link.click();
-    status.textContent = "Скачивание JSON запущено. Проверьте список загрузок браузера: приложение не может подтвердить сохранение файла на диске.";
+    status.textContent = t("Скачивание JSON запущено. Проверьте список загрузок браузера: приложение не может подтвердить сохранение файла на диске.");
     status.hidden = false;
   } catch {
-    showEventStorageError(error, "Не удалось запустить скачивание. Данные календаря не изменены. Повторите попытку.");
+    showEventStorageError(error, t("Не удалось запустить скачивание. Данные календаря не изменены. Повторите попытку."));
   } finally {
     link.remove();
     // Give the browser time to acquire the Blob before releasing the URL.
@@ -679,22 +737,22 @@ function exportCalendarBackup() {
 
 function backupSections(version) {
   const sections = [
-    ["settings", settingsStorageKey, parseYearSettings, "настройки"],
+    ["settings", settingsStorageKey, parseYearSettings, t("настройки")],
     ["events", eventStorageKey, (raw) => {
       parseYearEvents(raw);
       // Keep original tuples, including template links and opaque metadata.
       return raw === null ? {} : JSON.parse(raw);
-    }, "годовые события"],
-    ["thoughtPlacements", placementStorageKey, parseThoughtPlacements, "размещения мыслей"],
-    ["dayMarks", dayMarkStorageKey, parseDayMarks, "отметки дней"],
-    ["templates", templateStorageKey, parseTemplates, "шаблоны"],
-    ["thoughts", thoughtStorageKey, parseThoughts, "мысли"],
-    ["history", historyStorageKey, parseHistory, "история"],
+    }, t("годовые события")],
+    ["thoughtPlacements", placementStorageKey, parseThoughtPlacements, t("размещения мыслей")],
+    ["dayMarks", dayMarkStorageKey, parseDayMarks, t("отметки дней")],
+    ["templates", templateStorageKey, parseTemplates, t("шаблоны")],
+    ["thoughts", thoughtStorageKey, parseThoughts, t("мысли")],
+    ["history", historyStorageKey, parseHistory, t("история")],
   ];
   if (version === 2) sections.push(
-    ["weeklyEvents", weeklyEventStorageKey, parseWeeklyEvents, "недельные события"],
-    ["weeklyCategories", weeklyCategoryStorageKey, raw => raw === null ? null : parseWeeklyCategories(raw), "недельные категории"],
-    ["weeklyTemplates", weeklyTemplateStorageKey, parseWeeklyTemplates, "недельные шаблоны"],
+    ["weeklyEvents", weeklyEventStorageKey, parseWeeklyEvents, t("недельные события")],
+    ["weeklyCategories", weeklyCategoryStorageKey, raw => raw === null ? null : parseWeeklyCategories(raw), t("недельные категории")],
+    ["weeklyTemplates", weeklyTemplateStorageKey, parseWeeklyTemplates, t("недельные шаблоны")],
   );
   return sections;
 }
@@ -702,24 +760,24 @@ function backupSections(version) {
 function validateCalendarBackup(text) {
   let backup;
   try { backup = JSON.parse(text); }
-  catch { throw new Error("Файл не содержит корректный JSON."); }
+  catch { throw new CalendarStorageError(t("Файл не содержит корректный JSON.")); }
   if (!backup || typeof backup !== "object" || Array.isArray(backup)
     || backup.format !== "my-calendar-backup" || ![1, 2].includes(backup.version)) {
-    throw new Error("Неподдерживаемый формат или версия резервной копии. Нужен my-calendar-backup версии 1 или 2.");
+    throw new CalendarStorageError(t("Неподдерживаемый формат или версия резервной копии. Нужен my-calendar-backup версии 1 или 2."));
   }
   const writes = new Map();
   for (const [name, key, parse, label] of backupSections(backup.version)) {
-    if (!Object.hasOwn(backup, name)) throw new Error(`В файле отсутствует обязательный раздел: ${label}.`);
+    if (!Object.hasOwn(backup, name)) throw new CalendarStorageError(t`В файле отсутствует обязательный раздел: ${label}.`);
     // An absent category key activates the built-ins. A stored [] disables them.
     const raw = key === weeklyCategoryStorageKey && backup[name] === null ? null : JSON.stringify(backup[name]);
     try { parse(raw); }
-    catch { throw new Error(`Некорректные данные в разделе: ${label}.`); }
+    catch { throw new CalendarStorageError(t`Некорректные данные в разделе: ${label}.`); }
     writes.set(key, raw);
   }
   // Older readers do not require this informational timestamp.
   if (Object.hasOwn(backup, "exportedAt")
     && (typeof backup.exportedAt !== "string" || !Number.isFinite(Date.parse(backup.exportedAt)))) {
-    throw new Error("Некорректное время создания резервной копии.");
+    throw new CalendarStorageError(t("Некорректное время создания резервной копии."));
   }
   return { backup, writes };
 }
@@ -741,28 +799,28 @@ async function prepareBackupRestore() {
   const error = document.querySelector("#backup-import-error");
   const status = document.querySelector("#backup-read-status");
   showEventStorageError(error);
-  status.textContent = "Чтение и проверка файла…";
+  status.textContent = t("Чтение и проверка файла…");
   status.hidden = false;
   try {
     let text;
     try { text = await file.text(); }
-    catch { throw new Error("Не удалось прочитать файл. Выберите его ещё раз."); }
+    catch { throw new CalendarStorageError(t("Не удалось прочитать файл. Выберите его ещё раз.")); }
     if (token !== backupReadToken || activeDialog !== settingsDialog) return;
     const { backup, writes } = validateCalendarBackup(text);
     let original;
     try { original = snapshotRestoreStorage(writes); }
-    catch { throw new Error("Хранилище недоступно. Восстановление не подготовлено, данные не изменены."); }
+    catch { throw new CalendarStorageError(t("Хранилище недоступно. Восстановление не подготовлено, данные не изменены.")); }
     pendingRestore = { original, writes };
     const count = Object.values(backup.events).reduce((sum, records) => sum + records.length, 0);
     const weeklySummary = backup.version === 1
-      ? "Годовая копия версии 1. Недельные события, категории и шаблоны останутся без изменений."
-      : `Будут заменены недельные события за все годы (${backup.weeklyEvents.length}), категории (${backup.weeklyCategories?.length ?? "встроенный список"}) и недельные шаблоны (${backup.weeklyTemplates.length}).`;
-    document.querySelector("#backup-restore-summary").textContent = `Файл: ${file.name}\nГодовые данные за все годы и общие настройки будут заменены. Записи не объединяются.\nГодовые события: ${count}; мысли: ${backup.thoughts.length}; размещения мыслей: ${backup.thoughtPlacements.length}; годовые шаблоны: ${backup.templates.length}; снимки истории: ${backup.history.length}; даты с отметками: ${Object.keys(backup.dayMarks).length}.\n${weeklySummary}\nПосле восстановления страница перезагрузится.`;
+      ? t("Годовая копия версии 1. Недельные события, категории и шаблоны останутся без изменений.")
+      : t`Будут заменены недельные события за все годы (${backup.weeklyEvents.length}), категории (${backup.weeklyCategories?.length ?? t("встроенный список")}) и недельные шаблоны (${backup.weeklyTemplates.length}).`;
+    document.querySelector("#backup-restore-summary").textContent = t`Файл: ${file.name}\nГодовые данные за все годы и общие настройки будут заменены. Записи не объединяются.\nГодовой календарь: ${eventCount(count)}; мысли: ${backup.thoughts.length}; размещения мыслей: ${backup.thoughtPlacements.length}; годовые шаблоны: ${backup.templates.length}; снимки истории: ${backup.history.length}; даты с отметками: ${Object.keys(backup.dayMarks).length}.\n${weeklySummary}\nПосле восстановления страница перезагрузится.`;
     showEventStorageError(restoreError);
     restoreConfirm.disabled = false;
     openDialog(restoreDialog, null, document.querySelector("#cancel-backup-restore"));
   } catch (cause) {
-    if (token === backupReadToken && activeDialog === settingsDialog) showEventStorageError(error, cause.message);
+    if (token === backupReadToken && activeDialog === settingsDialog) showEventStorageError(error, storageErrorMessage(cause));
   } finally {
     if (token === backupReadToken) status.hidden = true;
   }
@@ -783,7 +841,7 @@ function rollbackBackupRestore(original, writes, attempted) {
   for (const [key, raw] of original) {
     try { if (localStorage.getItem(key) === raw) continue; }
     catch { /* An unreadable key cannot be claimed as restored. */ }
-    unresolved.push(backupSections(2).find(([, candidate]) => candidate === key)?.[3] || "старая история");
+    unresolved.push(backupSections(2).find(([, candidate]) => candidate === key)?.[3] || t("старая история"));
   }
   return unresolved;
 }
@@ -810,7 +868,7 @@ function confirmBackupRestore() {
     if (!restoreStorageMatches(original)) throw new Error("conflict");
   } catch {
     pendingRestore = null;
-    showEventStorageError(restoreError, "Данные изменились после подготовки или хранилище недоступно. Ничего не записано. Отмените действие и заново выберите файл.");
+    showEventStorageError(restoreError, t("Данные изменились после подготовки или хранилище недоступно. Ничего не записано. Отмените действие и заново выберите файл."));
     document.querySelector("#cancel-backup-restore").focus();
     return;
   }
@@ -829,17 +887,17 @@ function confirmBackupRestore() {
   } catch {
     const unresolved = rollbackBackupRestore(original, writes, attempted);
     if (unresolved.length) {
-      requireRestoreReload(`Восстановление не завершено. Исходное состояние не подтверждено для разделов: ${unresolved.join(", ")}. Там могут остаться данные файла или другой вкладки. Дальнейшие изменения заблокированы. Перезагрузите страницу, проверьте данные и при необходимости заново восстановите копию.`);
+      requireRestoreReload(t`Восстановление не завершено. Исходное состояние не подтверждено для разделов: ${unresolved.join(", ")}. Там могут остаться данные файла или другой вкладки. Дальнейшие изменения заблокированы. Перезагрузите страницу, проверьте данные и при необходимости заново восстановите копию.`);
     } else {
-      showEventStorageError(restoreError, "Запись не завершена. Исходные значения всех разделов восстановлены и проверены. Можно повторить попытку или отменить действие.");
+      showEventStorageError(restoreError, t("Запись не завершена. Исходные значения всех разделов восстановлены и проверены. Можно повторить попытку или отменить действие."));
       restoreConfirm.disabled = false;
       document.querySelector("#cancel-backup-restore").focus();
     }
     return;
   }
-  requireRestoreReload("Все разделы записаны и проверены. Перезагрузка календаря…");
+  requireRestoreReload(t("Все разделы записаны и проверены. Перезагрузка календаря…"));
   try { window.location.reload(); }
-  catch { showEventStorageError(restoreError, "Данные восстановлены. Перезагрузите страницу, чтобы работать с ними."); }
+  catch { showEventStorageError(restoreError, t("Данные восстановлены. Перезагрузите страницу, чтобы работать с ними.")); }
 }
 
 function historyTitle(record) {
@@ -876,7 +934,7 @@ function loadHistory() {
     records.forEach((record) => historyRecords.push(record));
   } catch {
     historyStorageBlocked = true;
-    showEventStorageError(historyLoadError, "Не удалось загрузить историю: данные повреждены, имеют неподдерживаемый формат или хранилище недоступно. Запись истории заблокирована, исходные данные не изменены. После восстановления данных или доступа перезагрузите страницу.");
+    showPersistentMessage(historyLoadError, "Не удалось загрузить историю: данные повреждены, имеют неподдерживаемый формат или хранилище недоступно. Запись истории заблокирована, исходные данные не изменены. После восстановления данных или доступа перезагрузите страницу.");
   }
   renderHistory();
 }
@@ -890,7 +948,7 @@ function saveHistory(nextRecords, errorElement) {
   try {
     if (localStorage.getItem(historyStorageKey) !== historyStorageSnapshot
       || (historyUsesLegacy && localStorage.getItem(legacyHistoryStorageKey) !== legacyHistorySnapshot)) {
-      showEventStorageError(errorElement, "История изменилась после загрузки страницы, возможно в другой вкладке. Запись остановлена, чужие изменения сохранены. Обновите страницу перед повторной попыткой; сначала сохраните несохранённый ввод.");
+      showEventStorageError(errorElement, t("История изменилась после загрузки страницы, возможно в другой вкладке. Запись остановлена, чужие изменения сохранены. Обновите страницу перед повторной попыткой; сначала сохраните несохранённый ввод."));
       return false;
     }
     const serialized = JSON.stringify(nextRecords);
@@ -898,7 +956,7 @@ function saveHistory(nextRecords, errorElement) {
     historyStorageSnapshot = serialized;
     historyUsesLegacy = false;
   } catch {
-    showEventStorageError(errorElement, "Не удалось сохранить историю. Добавление или удаление не выполнено. Проверьте доступ к хранилищу и повторите попытку или отмените действие.");
+    showEventStorageError(errorElement, t("Не удалось сохранить историю. Добавление или удаление не выполнено. Проверьте доступ к хранилищу и повторите попытку или отмените действие."));
     return false;
   }
   showEventStorageError(errorElement);
@@ -920,7 +978,7 @@ function createHistoryCard(record) {
   remove.type = "button";
   remove.className = "history-delete";
   remove.dataset.historyId = record.id;
-  remove.setAttribute("aria-label", `Удалить «${historyTitle(record)}» из истории, ${formatDate(record.date)}`);
+  remove.setAttribute("aria-label", t`Удалить «${historyTitle(record)}» из истории, ${formatDate(record.date)}`);
   remove.append(cardDialog.querySelector(".settings-close svg").cloneNode(true));
   card.append(copy, remove);
   return card;
@@ -952,7 +1010,7 @@ function addEventHistory() {
   historyRecords.push(pendingHistoryRecord);
   pendingHistoryRecord = null;
   renderHistory();
-  templateNotice.textContent = "Снимок события добавлен в историю. Исходное событие осталось без изменений.";
+  templateNotice.textContent = t("Снимок события добавлен в историю. Исходное событие осталось без изменений.");
   templateNotice.hidden = false;
 }
 
@@ -961,7 +1019,7 @@ function openHistoryDelete(button) {
   if (!record) return;
   historyEntryToDelete = record.id;
   showEventStorageError(historyDeleteError);
-  document.querySelector("#history-delete-copy").textContent = `Удалить «${historyTitle(record)}» (${formatDate(record.date)})? Будет удалён только этот снимок. Исходное событие останется без изменений.`;
+  document.querySelector("#history-delete-copy").textContent = t`Удалить «${historyTitle(record)}» (${formatDate(record.date)})? Будет удалён только этот снимок. Исходное событие останется без изменений.`;
   openDialog(historyDeleteDialog, button, document.querySelector("#cancel-history-delete"));
 }
 
@@ -981,8 +1039,7 @@ function confirmHistoryDeletion() {
 }
 
 function showThoughtError(element, message) {
-  element.textContent = message;
-  element.hidden = !message;
+  showEventStorageError(element, message);
 }
 
 function parseThoughts(raw) {
@@ -1004,7 +1061,7 @@ function loadThoughts() {
     thoughts = undatedThoughts(parseThoughts(thoughtStorageSnapshot));
   } catch {
     thoughtStorageBlocked = true;
-    showThoughtError(thoughtLoadError, "Не удалось загрузить мысли: сохранённые данные повреждены или хранилище недоступно. Добавление заблокировано, чтобы не потерять сохранения. После восстановления данных или доступа перезагрузите страницу.");
+    showPersistentMessage(thoughtLoadError, "Не удалось загрузить мысли: сохранённые данные повреждены или хранилище недоступно. Добавление заблокировано, чтобы не потерять сохранения. После восстановления данных или доступа перезагрузите страницу.");
   }
 }
 
@@ -1034,7 +1091,7 @@ function loadThoughtPlacements() {
     for (const placement of thoughtPlacements) attachThoughtPlacement(placement);
   } catch {
     placementStorageBlocked = true;
-    showThoughtError(thoughtOrderError, "Не удалось загрузить размещения мыслей. Данные не изменены; перенос и изменение мыслей заблокированы до восстановления данных и перезагрузки страницы.");
+    showPersistentMessage(thoughtOrderError, "Не удалось загрузить размещения мыслей. Данные не изменены; перенос и изменение мыслей заблокированы до восстановления данных и перезагрузки страницы.");
   }
 }
 
@@ -1063,7 +1120,7 @@ function saveThoughtPlacements(nextPlacements, errorElement) {
     showThoughtError(errorElement, "");
     return true;
   } catch {
-    showThoughtError(errorElement, "Не удалось сохранить размещение мысли. Хранилище недоступно, повреждено или изменилось в другой вкладке. Исходные записи и ввод сохранены. При конфликте перезагрузите страницу; иначе повторите попытку.");
+    showThoughtError(errorElement, t("Не удалось сохранить размещение мысли. Хранилище недоступно, повреждено или изменилось в другой вкладке. Исходные записи и ввод сохранены. При конфликте перезагрузите страницу; иначе повторите попытку."));
     return false;
   }
 }
@@ -1071,7 +1128,7 @@ function saveThoughtPlacements(nextPlacements, errorElement) {
 function savePlacedEvent(event, changes, errorElement) {
   const id = placedEvents.get(event);
   if (thoughtStorageBlocked || placementStorageBlocked) {
-    showThoughtError(errorElement, "Изменение размещения заблокировано: сначала восстановите данные мыслей и перезагрузите страницу.");
+    showThoughtError(errorElement, t("Изменение размещения заблокировано: сначала восстановите данные мыслей и перезагрузите страницу."));
     return false;
   }
   // Finish an interrupted inbox cleanup before editing or deleting its placement.
@@ -1107,7 +1164,7 @@ function hideThoughtUndo() {
 function showThoughtUndo(placement) {
   window.clearTimeout(undoThoughtTimer);
   undoThoughtPlacementId = placement.id;
-  thoughtUndoMessage.textContent = `Мысль перенесена на ${formatDate(placement.date)}.`;
+  thoughtUndoMessage.textContent = t`Мысль перенесена на ${formatDate(placement.date)}.`;
   thoughtUndoToast.hidden = false;
   undoThoughtTimer = window.setTimeout(() => {
     if (undoThoughtPlacementId === placement.id) hideThoughtUndo();
@@ -1121,7 +1178,7 @@ function returnPlacedThought(id, errorElement) {
   try {
     checkThoughtStorage();
     if (thoughtPlacements.some((item) => item.id !== id && item.thoughtId === placement.thoughtId)) {
-      showThoughtError(errorElement, "У этой мысли несколько размещений. Возврат остановлен, чтобы не создать копию в ленте одновременно с другим размещением.");
+      showThoughtError(errorElement, t("У этой мысли несколько размещений. Возврат остановлен, чтобы не создать копию в ленте одновременно с другим размещением."));
       return false;
     }
     const source = placement.sourceThought || parseThoughts(thoughtStorageSnapshot).find((item) => item.id === placement.thoughtId) || {};
@@ -1133,14 +1190,14 @@ function returnPlacedThought(id, errorElement) {
     };
     nextThoughts = [returned, ...thoughts.filter((item) => item.id !== thoughtId)];
   } catch {
-    showThoughtError(errorElement, "Не удалось вернуть мысль: хранилище недоступно, повреждено или изменилось в другой вкладке. Данные не изменены. При конфликте перезагрузите страницу, иначе повторите попытку.");
+    showThoughtError(errorElement, t("Не удалось вернуть мысль: хранилище недоступно, повреждено или изменилось в другой вкладке. Данные не изменены. При конфликте перезагрузите страницу, иначе повторите попытку."));
     return false;
   }
   // Prepare the inbox copy first. While the placement exists, load/saveThoughts
   // keep this copy out of the visible inbox, including after an interrupted return.
   if (!saveThoughts(nextThoughts, errorElement)) return false;
   if (!saveThoughtPlacements(thoughtPlacements.filter((item) => item.id !== id), errorElement)) {
-    showThoughtError(errorElement, "Возврат не завершён: копия мысли сохранена, но удалить размещение не удалось. Мысль остаётся на дате, в том числе после перезагрузки. Повторите возврат; при конфликте сначала перезагрузите страницу.");
+    showThoughtError(errorElement, t("Возврат не завершён: копия мысли сохранена, но удалить размещение не удалось. Мысль остаётся на дате, в том числе после перезагрузки. Повторите возврат; при конфликте сначала перезагрузите страницу."));
     return false;
   }
   thoughts = nextThoughts;
@@ -1188,7 +1245,7 @@ function dropThoughtOnDate(event) {
     ...thought.placementMetadata,
     id: `placed-thought-${crypto.randomUUID()}`, thoughtId: thought.id,
     date: cell.dataset.date, title: thought.text, colour: thought.colour,
-    type: toEventColour(thought.colour), description: typeof thought.scheduledDescription === "string" ? thought.scheduledDescription : "Мысль добавлена из верхней ленты",
+    type: toEventColour(thought.colour), description: typeof thought.scheduledDescription === "string" ? thought.scheduledDescription : t("Мысль добавлена из верхней ленты"),
     sourceThought: { ...thought },
   };
   // The placement write is the commit point. Inbox removal is recoverable cleanup:
@@ -1197,7 +1254,7 @@ function dropThoughtOnDate(event) {
   const nextThoughts = undatedThoughts(thoughts);
   if (!saveThoughts(nextThoughts, thoughtOrderError)) {
     thoughts = nextThoughts;
-    showThoughtError(thoughtOrderError, "Мысль сохранена на дате, но резервную запись в хранилище ленты удалить не удалось. После перезагрузки она останется только на дате. Очистка повторится при следующем сохранении мыслей.");
+    showPersistentMessage(thoughtOrderError, "Мысль сохранена на дате, но резервную запись в хранилище ленты удалить не удалось. После перезагрузки она останется только на дате. Очистка повторится при следующем сохранении мыслей.");
   }
   attachThoughtPlacement(placement);
   renderThoughts();
@@ -1213,10 +1270,10 @@ function renderThoughts() {
     card.className = `thought ${thought.colour}`.trim();
     card.dataset.thoughtId = thought.id;
     card.draggable = true;
-    card.title = "Нажмите, чтобы отредактировать. Перетащите внутри ленты или на дату календаря.";
+    card.title = t("Нажмите, чтобы отредактировать. Перетащите внутри ленты или на дату календаря.");
     card.tabIndex = 0;
     card.setAttribute("role", "button");
-    card.setAttribute("aria-label", `Редактировать мысль: ${thought.text}`);
+    card.setAttribute("aria-label", t`Редактировать мысль: ${thought.text}`);
     card.setAttribute("aria-haspopup", "dialog");
     card.textContent = thought.text;
     return card;
@@ -1301,11 +1358,11 @@ function openThoughtDialog(id = null) {
   thoughtText.maxLength = Math.max(240, thought?.text.length || 0);
   thoughtText.value = thought?.text ?? "";
   setThoughtColour(thought?.colour ?? "yellow");
-  document.querySelector("#thought-dialog-title").textContent = thought ? "Редактировать мысль" : "Новая мысль";
+  document.querySelector("#thought-dialog-title").textContent = thought ? t("Редактировать мысль") : t("Новая мысль");
   document.querySelector("#thought-dialog-help").textContent = thought
-    ? "Измените текст и цвет или удалите мысль. Её место в ленте сохраняется."
-    : "Мысль сохраняется в этом браузере без даты, времени и приоритета — только в верхней ленте.";
-  thoughtForm.querySelector('[type="submit"]').textContent = thought ? "Сохранить изменения" : "Сохранить мысль";
+    ? t("Измените текст и цвет или удалите мысль. Её место в ленте сохраняется.")
+    : t("Мысль сохраняется в этом браузере без даты, времени и приоритета — только в верхней ленте.");
+  thoughtForm.querySelector('[type="submit"]').textContent = thought ? t("Сохранить изменения") : t("Сохранить мысль");
   thoughtDeleteButton.hidden = !thought;
   thoughtText.setCustomValidity("");
   pendingThought = null;
@@ -1326,7 +1383,7 @@ function saveThoughts(nextThoughts, errorElement) {
     thoughts = undatedThoughts(nextThoughts);
     thoughtStorageSnapshot = serialized;
   } catch {
-    showThoughtError(errorElement, "Не удалось сохранить изменения мыслей. Исходные записи не изменены. Проверьте доступ к хранилищу и свободное место. Если данные изменены в другой вкладке, скопируйте ввод и перезагрузите страницу.");
+    showThoughtError(errorElement, t("Не удалось сохранить изменения мыслей. Исходные записи не изменены. Проверьте доступ к хранилищу и свободное место. Если данные изменены в другой вкладке, скопируйте ввод и перезагрузите страницу."));
     return false;
   }
   return true;
@@ -1342,7 +1399,7 @@ function submitThought(event) {
   event.preventDefault();
   if (activeDialog !== thoughtDialog) return;
   const text = thoughtText.value.trim();
-  thoughtText.setCustomValidity(text ? "" : "Введите текст мысли.");
+  thoughtText.setCustomValidity(text ? "" : t("Введите текст мысли."));
   if (!thoughtForm.reportValidity()) return;
   const colour = thoughtForm.elements.colour.value;
   const isEditing = activeThoughtId !== null;
@@ -1362,7 +1419,7 @@ function submitThought(event) {
 function requestThoughtDeletion() {
   const thought = thoughts.find((item) => item.id === activeThoughtId);
   if (!thought || activeDialog !== thoughtDialog) return;
-  document.querySelector("#thought-delete-copy").textContent = `Удалить мысль «${thought.text}»?`;
+  document.querySelector("#thought-delete-copy").textContent = t`Удалить мысль «${thought.text}»?`;
   showThoughtError(thoughtDeleteError, "");
   openDialog(thoughtDeleteDialog, null, document.querySelector("#cancel-thought-delete"));
 }
@@ -1382,7 +1439,7 @@ function confirmThoughtDeletion() {
 }
 
 function getEventColourName(colour) {
-  return colourNames[colour] || templateColourNames[colour];
+  return t(colourNames[colour] || templateColourNames[colour]);
 }
 
 function parseTemplates(raw) {
@@ -1415,12 +1472,12 @@ function writeTemplates(items, expectedRaw, errorElement) {
   if (restoreNeedsReload) return false;
   try {
     if (localStorage.getItem(templateStorageKey) !== expectedRaw) {
-      showEventStorageError(errorElement, "Шаблоны изменились в другой вкладке. Запись остановлена. Скопируйте черновик перед закрытием редактора и откройте библиотеку заново.");
+      showEventStorageError(errorElement, t("Шаблоны изменились в другой вкладке. Запись остановлена. Скопируйте черновик перед закрытием редактора и откройте библиотеку заново."));
       return false;
     }
     localStorage.setItem(templateStorageKey, JSON.stringify(items));
   } catch {
-    showEventStorageError(errorElement, "Не удалось сохранить шаблоны. Данные и черновик не изменены. Проверьте доступ к хранилищу и повторите попытку.");
+    showEventStorageError(errorElement, t("Не удалось сохранить шаблоны. Данные и черновик не изменены. Проверьте доступ к хранилищу и повторите попытку."));
     return false;
   }
   savedTemplates = items;
@@ -1438,7 +1495,7 @@ function loadTemplateLibrary() {
     createTemplateButton.disabled = false;
     return true;
   } catch {
-    showEventStorageError(templatesError, "Не удалось загрузить шаблоны: данные повреждены или хранилище недоступно. Сохранения не изменены. После восстановления закройте и снова откройте библиотеку.");
+    showEventStorageError(templatesError, t("Не удалось загрузить шаблоны: данные повреждены или хранилище недоступно. Сохранения не изменены. После восстановления закройте и снова откройте библиотеку."));
     createTemplateButton.disabled = true;
     return false;
   }
@@ -1467,7 +1524,7 @@ function showTemplateLibrary(focusId = null, notice = "", reload = true) {
     title.textContent = template.title;
     const description = document.createElement("span");
     description.className = "day-event-description";
-    description.textContent = template.description || `${getEventColourName(template.type)} · шаблон события`;
+    description.textContent = template.description || t`${getEventColourName(template.type)} · шаблон события`;
     copy.append(title, description);
     row.append(dot, copy);
     templateList.append(row);
@@ -1483,14 +1540,14 @@ function setTemplateColour(colour) {
   updateColourPalette(templatePalette, colour);
   const legacy = document.querySelector("#template-legacy-colour");
   legacy.hidden = calendarPalette.some(({ value }) => toEventColour(value) === colour);
-  legacy.textContent = legacy.hidden ? "" : `Текущий цвет: ${getEventColourName(colour)}. Он останется, пока вы не выберете другой.`;
+  legacy.textContent = legacy.hidden ? "" : t`Текущий цвет: ${getEventColourName(colour)}. Он останется, пока вы не выберете другой.`;
 }
 
 function openTemplateEditor(id = null) {
   if (!loadTemplateLibrary()) return;
   const template = templateLibrary.find((item) => item.id === id);
   if (id !== null && !template) {
-    showTemplateLibrary(null, "Этот шаблон уже удалён. Список обновлён.");
+    showTemplateLibrary(null, t("Этот шаблон уже удалён. Список обновлён."));
     return;
   }
   activeTemplateId = id;
@@ -1502,8 +1559,8 @@ function openTemplateEditor(id = null) {
   templateDescription.value = template?.description ?? "";
   templateName.setCustomValidity("");
   setTemplateColour(template?.type ?? toEventColour("yellow"));
-  document.querySelector("#template-card-title").textContent = template ? "Редактировать шаблон" : "Новый шаблон";
-  templateForm.querySelector("[type=submit]").textContent = template ? "Сохранить изменения" : "Создать шаблон";
+  document.querySelector("#template-card-title").textContent = template ? t("Редактировать шаблон") : t("Новый шаблон");
+  templateForm.querySelector("[type=submit]").textContent = template ? t("Сохранить изменения") : t("Создать шаблон");
   templateDeleteButton.hidden = !template;
   templateUseButton.hidden = !template;
   showEventStorageError(templateSaveError);
@@ -1514,7 +1571,7 @@ function submitTemplate(event) {
   event.preventDefault();
   if (activeDialog !== templateDialog) return;
   const title = templateName.value;
-  templateName.setCustomValidity(title.trim() ? "" : "Введите название шаблона.");
+  templateName.setCustomValidity(title.trim() ? "" : t("Введите название шаблона."));
   if (!templateForm.reportValidity()) return;
   const changes = { title, type: templateForm.elements.colour.value, description: templateDescription.value };
   const existing = templateLibrary.find((item) => item.id === activeTemplateId);
@@ -1524,10 +1581,10 @@ function submitTemplate(event) {
     try {
       if (localStorage.getItem(templateStorageKey) !== templateEditorSnapshot) throw new Error();
     } catch {
-      showEventStorageError(templateSaveError, "Не удалось проверить шаблоны: хранилище недоступно или изменилось в другой вкладке. Черновик сохранён; откройте библиотеку заново после проверки.");
+      showEventStorageError(templateSaveError, t("Не удалось проверить шаблоны: хранилище недоступно или изменилось в другой вкладке. Черновик сохранён; откройте библиотеку заново после проверки."));
       return;
     }
-    showTemplateLibrary(duplicate.id, "Такой шаблон уже сохранён. Новая запись не создана.", false);
+    showTemplateLibrary(duplicate.id, t("Такой шаблон уже сохранён. Новая запись не создана."), false);
     return;
   }
   if (activeTemplateId !== null && !existing) return;
@@ -1541,7 +1598,7 @@ function submitTemplate(event) {
     offerTemplateUpdate(next.find((item) => item.id === id));
     return;
   }
-  showTemplateLibrary(id, "Шаблон сохранён.", false);
+  showTemplateLibrary(id, t("Шаблон сохранён."), false);
 }
 
 function localTodayKey() {
@@ -1559,12 +1616,12 @@ function futureTemplateRecords(id, todayKey) {
 
 function describeTemplateUpdate(count) {
   const { template, todayKey } = pendingTemplateUpdate;
-  templateFutureHelp.textContent = `Шаблон «${template.title}» уже сохранён. Связанных событий после ${formatDate(todayKey)} во всех годах: ${count}. Сегодняшний день не входит. Выберите записи для обновления. Только у выбранных событий название, цвет и описание будут заменены значениями сохранённого шаблона, включая изменения, внесённые вручную. Даты, порядок и невыбранные записи сохранятся. «Только шаблон» оставит все события без изменений.`;
+  templateFutureHelp.textContent = t`Шаблон «${template.title}» уже сохранён. Связанных событий после ${formatDate(todayKey)} во всех годах: ${count}. Сегодняшний день не входит. Выберите записи для обновления. Только у выбранных событий название, цвет и описание будут заменены значениями сохранённого шаблона, включая изменения, внесённые вручную. Даты, порядок и невыбранные записи сохранятся. «Только шаблон» оставит все события без изменений.`;
 }
 
 function updateTemplateSelection() {
   const { selected, items } = pendingTemplateUpdate;
-  document.querySelector("#template-future-count").textContent = `Выбрано: ${selected.size} из ${items.length}`;
+  document.querySelector("#template-future-count").textContent = t`Выбрано: ${selected.size} из ${items.length}`;
   templateFutureApply.disabled = selected.size === 0;
 }
 
@@ -1589,7 +1646,7 @@ function renderTemplateCandidates() {
     dateLabel.textContent = formatDate(date);
     const content = document.createElement("span");
     content.className = "day-event-description";
-    content.textContent = `${item.title}\nЦвет: ${getEventColourName(item.colour)}\n${item.description || "Без описания"}`;
+    content.textContent = t`${item.title}\nЦвет: ${getEventColourName(item.colour)}\n${item.description || t("Без описания")}`;
     copy.append(dateLabel, content);
     row.append(checkbox, copy);
     templateFutureList.append(row);
@@ -1614,14 +1671,14 @@ function finishTemplateUpdate(message) {
 
 function offerTemplateUpdate(template) {
   if (eventStorageBlocked) {
-    showTemplateLibrary(template.id, "Шаблон сохранён. События недоступны: обновление не выполнено. Восстановите хранилище и перезагрузите страницу.", false);
+    showTemplateLibrary(template.id, t("Шаблон сохранён. События недоступны: обновление не выполнено. Восстановите хранилище и перезагрузите страницу."), false);
     return;
   }
   const todayKey = localTodayKey();
   const items = futureTemplateRecords(template.id, todayKey);
   const count = items.length;
   if (!count) {
-    showTemplateLibrary(template.id, "Шаблон сохранён. Связанных будущих событий в загруженном календаре нет; события не записывались.", false);
+    showTemplateLibrary(template.id, t("Шаблон сохранён. Связанных будущих событий в загруженном календаре нет; события не записывались."), false);
     return;
   }
   pendingTemplateUpdate = {
@@ -1640,16 +1697,16 @@ function applyTemplateUpdate() {
   try {
     const current = readSavedTemplates().find((item) => item.id === template.id);
     if (!current || JSON.stringify(current) !== snapshot) {
-      showEventStorageError(templateFutureError, "Шаблон был сохранён, но затем изменён или удалён в другой вкладке. События не обновлены. Закройте окно и заново откройте актуальный шаблон.");
+      showEventStorageError(templateFutureError, t("Шаблон был сохранён, но затем изменён или удалён в другой вкладке. События не обновлены. Закройте окно и заново откройте актуальный шаблон."));
       return;
     }
     if (localStorage.getItem(eventStorageKey) !== pendingTemplateUpdate.eventSnapshot
       || eventStorageSnapshot !== pendingTemplateUpdate.eventSnapshot) {
-      showEventStorageError(templateFutureError, "Шаблон сохранён. События изменены в другой вкладке; обновление остановлено. Чужие изменения не перезаписаны. Закройте окно и перезагрузите страницу.");
+      showEventStorageError(templateFutureError, t("Шаблон сохранён. События изменены в другой вкладке; обновление остановлено. Чужие изменения не перезаписаны. Закройте окно и перезагрузите страницу."));
       return;
     }
   } catch {
-    showEventStorageError(templateFutureError, "Шаблон был сохранён. Проверить хранилища не удалось; события не обновлены. Проверьте доступ и повторите попытку.");
+    showEventStorageError(templateFutureError, t("Шаблон был сохранён. Проверить хранилища не удалось; события не обновлены. Проверьте доступ и повторите попытку."));
     return;
   }
   const todayKey = localTodayKey();
@@ -1663,7 +1720,7 @@ function applyTemplateUpdate() {
     describeTemplateUpdate(pendingTemplateUpdate.items.length);
     renderTemplateCandidates();
     if (templateFutureApply.disabled) document.querySelector("#decline-template-future").focus();
-    showEventStorageError(templateFutureError, "Наступила новая дата. Граница будущих событий пересчитана; подтвердите обновление ещё раз.");
+    showEventStorageError(templateFutureError, t("Наступила новая дата. Граница будущих событий пересчитана; подтвердите обновление ещё раз."));
     return;
   }
   const { selected } = pendingTemplateUpdate;
@@ -1676,12 +1733,12 @@ function applyTemplateUpdate() {
     return updated;
   })]));
   if (!saveYearEvents(nextEvents, templateFutureError)) {
-    templateFutureError.textContent = `Шаблон уже сохранён; события не обновлены. ${templateFutureError.textContent}`;
+    templateFutureError.textContent = t`Шаблон уже сохранён; события не обновлены. ${templateFutureError.textContent}`;
     return;
   }
   Object.assign(events, nextEvents);
   for (const date of new Set(targets.map((target) => target.date))) refreshDate(date);
-  finishTemplateUpdate(`Шаблон сохранён. Обновлено будущих событий: ${targets.length}.`);
+  finishTemplateUpdate(t`Шаблон сохранён. Обновлено будущих событий: ${targets.length}.`);
 }
 
 function updatePlacementSelection() {
@@ -1696,8 +1753,8 @@ function updatePlacementSelection() {
   });
   if (!calendarPlacement) return;
   const count = calendarPlacement.dates.size;
-  calendarPlacementMessage.textContent = `«${calendarPlacement.record[0]}»: выберите даты в календаре. Повторное нажатие снимает выбор. Выбрано: ${count}. До подтверждения события не сохраняются.`;
-  calendarPlacementConfirm.textContent = `Разместить (${count})`;
+  calendarPlacementMessage.textContent = t`«${calendarPlacement.record[0]}»: выберите даты в календаре. Повторное нажатие снимает выбор. Выбрано: ${count}. До подтверждения события не сохраняются.`;
+  calendarPlacementConfirm.textContent = t`Разместить (${count})`;
   calendarPlacementConfirm.disabled = count === 0;
 }
 
@@ -1776,15 +1833,15 @@ function confirmCalendarPlacement() {
   try {
     const current = templateId ? readSavedTemplates().find((item) => item.id === templateId) : null;
     if (templateId && (!current || JSON.stringify(current) !== snapshot)) {
-      showEventStorageError(calendarPlacementError, "Шаблон изменён или удалён в другой вкладке. Ничего не размещено. Выбор дат сохранён; отмените операцию и заново откройте нужный шаблон.");
+      showPersistentMessage(calendarPlacementError, "Шаблон изменён или удалён в другой вкладке. Ничего не размещено. Выбор дат сохранён; отмените операцию и заново откройте нужный шаблон.");
       return;
     }
     if (placementSnapshot !== undefined && localStorage.getItem(placementStorageKey) !== placementSnapshot) {
-      showEventStorageError(calendarPlacementError, "Размещённые мысли изменились в другой вкладке. Ничего не размещено. Выбор дат сохранён; отмените операцию и обновите страницу перед повторением.");
+      showPersistentMessage(calendarPlacementError, "Размещённые мысли изменились в другой вкладке. Ничего не размещено. Выбор дат сохранён; отмените операцию и обновите страницу перед повторением.");
       return;
     }
   } catch {
-    showEventStorageError(calendarPlacementError, "Не удалось проверить источник. Ничего не размещено. Выбор дат сохранён; проверьте хранилище и повторите попытку.");
+    showPersistentMessage(calendarPlacementError, "Не удалось проверить источник. Ничего не размещено. Выбор дат сохранён; проверьте хранилище и повторите попытку.");
     return;
   }
   const nextEvents = { ...events };
@@ -1803,7 +1860,7 @@ function confirmCalendarPlacement() {
 function requestTemplateDeletion() {
   const template = templateLibrary.find((item) => item.id === activeTemplateId);
   if (!template || activeDialog !== templateDialog) return;
-  document.querySelector("#template-delete-help").textContent = `Удалить шаблон «${template.title}»? Уже созданные события и история останутся без изменений.`;
+  document.querySelector("#template-delete-help").textContent = t`Удалить шаблон «${template.title}»? Уже созданные события и история останутся без изменений.`;
   showEventStorageError(templateDeleteError);
   openDialog(templateDeleteDialog, null, document.querySelector("#cancel-template-delete"));
 }
@@ -1815,7 +1872,7 @@ function confirmTemplateDeletion() {
   const next = templateLibrary.filter((item) => item.id !== activeTemplateId);
   if (!writeTemplates(next, templateEditorSnapshot, templateDeleteError)) return;
   renderTemplateOptions();
-  showTemplateLibrary((next[index] || next[index - 1])?.id, "Шаблон удалён.", false);
+  showTemplateLibrary((next[index] || next[index - 1])?.id, t("Шаблон удалён."), false);
 }
 
 function renderTemplateOptions() {
@@ -1824,11 +1881,11 @@ function renderTemplateOptions() {
     savedTemplates = readSavedTemplates();
   } catch {
     savedTemplates = [];
-    error = "Не удалось загрузить шаблоны: данные повреждены или хранилище недоступно. Сохранения не изменены. Событие можно создать вручную.";
+    error = t("Не удалось загрузить шаблоны: данные повреждены или хранилище недоступно. Сохранения не изменены. Событие можно создать вручную.");
   }
   const empty = document.createElement("option");
   empty.value = "";
-  empty.textContent = error ? "Шаблоны недоступны" : (savedTemplates.length ? "Без шаблона" : "Шаблонов пока нет");
+  empty.textContent = error ? t("Шаблоны недоступны") : (savedTemplates.length ? t("Без шаблона") : t("Шаблонов пока нет"));
   templateSelect.replaceChildren(empty);
   for (const template of savedTemplates) {
     const option = document.createElement("option");
@@ -1838,8 +1895,8 @@ function renderTemplateOptions() {
   }
   templateSelect.disabled = savedTemplates.length === 0;
   templateHelp.textContent = error || (savedTemplates.length
-    ? "Шаблон заполнит название, цвет и описание. Дата останется выбранной здесь."
-    : "Создайте шаблон в библиотеке «Шаблоны» или сохраните его из карточки события.");
+    ? t("Шаблон заполнит название, цвет и описание. Дата останется выбранной здесь.")
+    : t("Создайте шаблон в библиотеке «Шаблоны» или сохраните его из карточки события."));
 }
 
 function toEventColour(colour) {
@@ -1852,8 +1909,8 @@ function createColourPalette(container, toValue, onSelect) {
     button.type = "button";
     button.className = `colour-option ${value}`;
     button.dataset.colour = toValue(value);
-    button.setAttribute("aria-label", label);
-    button.title = label;
+    bindInterfaceAttribute(button, "aria-label", label);
+    bindInterfaceAttribute(button, "title", label);
     button.setAttribute("aria-pressed", "false");
     button.addEventListener("click", () => onSelect(button.dataset.colour));
     return button;
@@ -1876,7 +1933,7 @@ function setEventColour(colour) {
   updateColourPalette(eventColourPalette, colour);
   const isLegacy = Object.hasOwn(colourNames, colour);
   legacyEventColour.hidden = !isLegacy;
-  legacyEventColour.textContent = isLegacy ? `Текущий цвет: ${colourNames[colour]} (сохранённый). Он останется, пока вы не выберете другой.` : "";
+  legacyEventColour.textContent = isLegacy ? t`Текущий цвет: ${getEventColourName(colour)} (сохранённый). Он останется, пока вы не выберете другой.` : "";
 }
 
 function applyEventTemplate() {
@@ -1900,16 +1957,16 @@ function saveEventTemplate() {
   try {
     store = readTemplateStore();
   } catch {
-    templateNotice.textContent = "Не удалось прочитать шаблоны: данные повреждены или хранилище недоступно. Сохранение отменено, существующие данные не изменены.";
+    templateNotice.textContent = t("Не удалось прочитать шаблоны: данные повреждены или хранилище недоступно. Сохранение отменено, существующие данные не изменены.");
     return;
   }
   if (findMatchingTemplate(store.items, { title, type, description })) {
-    templateNotice.textContent = `Шаблон «${title}» уже сохранён.`;
+    templateNotice.textContent = t`Шаблон «${title}» уже сохранён.`;
     return;
   }
   const template = { id: `template-${crypto.randomUUID()}`, title, type, description };
   if (!writeTemplates([...store.items, template], store.raw, templateNotice)) return;
-  templateNotice.textContent = `Шаблон «${title}» сохранён. Его можно выбрать при создании следующего события.`;
+  templateNotice.textContent = t`Шаблон «${title}» сохранён. Его можно выбрать при создании следующего события.`;
   templateNotice.hidden = false;
 }
 
@@ -1917,9 +1974,13 @@ function getDateKey(year, monthIndex, day) {
   return `${String(year).padStart(4, "0")}-${String(monthIndex + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
+function formatDayMonth(day, month) {
+  return t`${day} ${t(monthNamesGenitive[month - 1])}`;
+}
+
 function formatDate(key) {
   const [year, month, day] = key.split("-").map(Number);
-  return `${day} ${monthNamesGenitive[month - 1]} ${String(year).padStart(4, "0")} · ${getWeekday(year, month - 1, day)}`;
+  return `${formatDayMonth(day, month)} ${String(year).padStart(4, "0")} · ${getWeekday(year, month - 1, day)}`;
 }
 
 function updateEventButton(button, key) {
@@ -1954,12 +2015,12 @@ function updateEventFilter(button, key) {
   const dayEvents = events[key] || [];
   const matches = dayEvents.filter((event) => selectedEventFilters.has(event.title));
   const label = dayEvents.length > 1
-    ? `События дня: ${dayEvents.length}, ${formatDate(key)}`
+    ? `${eventCount(dayEvents.length)}, ${formatDate(key)}`
     : (dayEvents.length === 1
-      ? `Открыть событие «${dayEvents[0].title}», ${formatDate(key)}`
-      : `Создать событие, ${formatDate(key)}`);
+      ? t`Открыть событие «${dayEvents[0].title}», ${formatDate(key)}`
+      : t`Создать событие, ${formatDate(key)}`);
   const matchSummary = selectedEventFilters.size && dayEvents.length
-    ? `; совпадений с фильтром: ${matches.length}${matches.length ? ` — ${[...new Set(matches.map((event) => event.title))].join(", ")}` : ""}`
+    ? t`; совпадений с фильтром: ${matches.length}${matches.length ? ` — ${[...new Set(matches.map((event) => event.title))].join(", ")}` : ""}`
     : "";
   button.setAttribute("aria-label", label + matchSummary);
   button.classList.toggle("is-filtered", matches.length > 0);
@@ -1971,8 +2032,8 @@ function updateYearFilters() {
   calendar.classList.toggle("filter-active", hasFilters);
   dayEventList.classList.toggle("filter-active", hasFilters);
   filtersButton.classList.toggle("filter-active", hasFilters);
-  filtersButton.setAttribute("aria-label", hasFilters ? `Фильтры: выбрано ${selectedEventFilters.size}` : "Фильтры");
-  filterSummary.textContent = `Выбрано: ${selectedEventFilters.size}`;
+  filtersButton.setAttribute("aria-label", hasFilters ? t`Фильтры: выбрано ${selectedEventFilters.size}` : t("Фильтры"));
+  filterSummary.textContent = t`Выбрано: ${selectedEventFilters.size}`;
   resetFiltersButton.disabled = !hasFilters;
   calendar.querySelectorAll('[data-action="open-day"]').forEach((button) => {
     updateEventFilter(button, button.dataset.date);
@@ -2030,7 +2091,7 @@ function getDaysInMonth(year, monthIndex) {
 
 function getWeekday(year, monthIndex, day) {
   const date = createLocalDate(year, monthIndex, day);
-  return weekDays[(date.getDay() + 6) % 7];
+  return t(weekDays[(date.getDay() + 6) % 7]);
 }
 
 function applyDayState(row, date) {
@@ -2096,14 +2157,22 @@ const categoryNotice = document.querySelector("#week-category-notice");
 const categoryDeleteError = document.querySelector("#week-category-delete-error");
 const manageCategoriesButton = document.querySelector("#manage-week-categories");
 
+function hasOriginalCategoryLabel(category) {
+  return initialWeeklyCategories.some(item => item.id === category.id && item.label === category.label);
+}
+
+function categoryDisplayName(category) {
+  return hasOriginalCategoryLabel(category) ? t(category.label) : category.label;
+}
+
 function categoryOptions() {
-  return [["uncategorized", "Без категории"], ...weeklyCategories.map(({ id, label }) => [id, label])];
+  return [["uncategorized", t("Без категории")], ...weeklyCategories.map(item => [item.id, categoryDisplayName(item)])];
 }
 
 function weekCategoryLabel(category) {
-  if (category === undefined) return "Без категории (не задана)";
+  if (category === undefined) return t("Без категории (не задана)");
   return categoryOptions().find(([id]) => id === category)?.[1]
-    ?? `Сохранённая категория: ${category || "(пустая строка)"}`;
+    ?? t`Сохранённая категория: ${category || t("(пустая строка)")}`;
 }
 
 function parseWeeklyCategories(raw) {
@@ -2118,7 +2187,7 @@ function parseWeeklyCategories(raw) {
       || (item.defaultColour !== undefined && typeof item.defaultColour !== "string")) return true;
     ids.add(item.id);
     return false;
-  })) throw new Error("Данные категорий повреждены или не поддерживаются.");
+  })) throw new CalendarStorageError(t("Данные категорий повреждены или не поддерживаются."));
   return items;
 }
 
@@ -2133,7 +2202,7 @@ function checkWeeklyCategories() {
   const raw = localStorage.getItem(weeklyCategoryStorageKey);
   parseWeeklyCategories(raw);
   if (categoryReadError || raw !== categorySnapshot) {
-    throw new Error("Категории недоступны или изменились в другой вкладке. Скопируйте черновик и перезагрузите страницу.");
+    throw new CalendarStorageError(t("Категории недоступны или изменились в другой вкладке. Скопируйте черновик и перезагрузите страницу."));
   }
 }
 
@@ -2165,17 +2234,17 @@ function renderWeeklyCategoryList() {
     swatch.style.backgroundColor = /^#[\da-f]{6}$/i.test(category.defaultColour || "") ? category.defaultColour : "#687582";
     swatch.setAttribute("aria-hidden", "true");
     const label = document.createElement("strong");
-    label.textContent = category.label;
+    label.textContent = categoryDisplayName(category);
     const button = document.createElement("button");
     button.type = "button";
     button.className = "day-secondary weekly-delete";
-    button.textContent = "Удалить";
+    button.textContent = t("Удалить");
     button.dataset.categoryId = category.id;
-    button.setAttribute("aria-label", `Удалить категорию «${category.label}»`);
+    button.setAttribute("aria-label", t`Удалить категорию «${categoryDisplayName(category)}»`);
     button.addEventListener("click", () => {
       pendingCategoryDeletion = category;
       showEventStorageError(categoryDeleteError);
-      document.querySelector("#week-category-delete-copy").textContent = `Удалить категорию «${category.label}»? Связанные события останутся без категории, со своими цветами и остальными данными.`;
+      document.querySelector("#week-category-delete-copy").textContent = t`Удалить категорию «${categoryDisplayName(category)}»? Связанные события останутся без категории, со своими цветами и остальными данными.`;
       openDialog(categoryDeleteDialog, null, document.querySelector("#cancel-week-category-delete"));
     });
     row.append(swatch, label, button);
@@ -2195,7 +2264,7 @@ manageCategoriesButton.addEventListener("click", () => {
   categoryName.value = "";
   showEventStorageError(categoryNotice);
   try { checkWeeklyCategories(); }
-  catch (error) { showEventStorageError(categoryNotice, `${error.message} Исходные данные не изменены.`); }
+  catch (error) { showEventStorageError(categoryNotice, t`${storageErrorMessage(error)} Исходные данные не изменены.`); }
   renderWeeklyCategoryList();
   openDialog(categoryDialog, null, categoryName);
 });
@@ -2205,20 +2274,24 @@ document.querySelector("#week-category-add").addEventListener("submit", (event) 
   if (activeDialog !== categoryDialog || restoreNeedsReload) return;
   const label = categoryName.value.trim();
   if (!label || label.length > 32) {
-    showEventStorageError(categoryNotice, "Введите название от 1 до 32 символов, не только пробелы.");
+    showEventStorageError(categoryNotice, t("Введите название от 1 до 32 символов, не только пробелы."));
     return;
   }
-  if (weeklyCategories.some((item) => item.label.trim().localeCompare(label, "ru", { sensitivity: "accent" }) === 0)) {
-    showEventStorageError(categoryNotice, `Категория «${label}» уже есть в списке.`);
+  const matchesLabel = name => name.trim().localeCompare(label, interfaceLanguage, { sensitivity: "accent" }) === 0;
+  const duplicate = weeklyCategories.some(category => hasOriginalCategoryLabel(category)
+    ? Object.values(interfaceMessages).some(messages => matchesLabel(messages[category.label]))
+    : matchesLabel(category.label));
+  if (duplicate) {
+    showEventStorageError(categoryNotice, t`Категория «${label}» уже есть в списке.`);
     return;
   }
   const category = { id: `custom-${crypto.randomUUID().replaceAll("-", "")}`, label, defaultColour: "#687582" };
   try { saveWeeklyCategories([...weeklyCategories, category]); }
-  catch (error) { showEventStorageError(categoryNotice, `Не удалось добавить категорию. ${error.message} Черновик сохранён; повторите попытку после устранения причины.`); return; }
+  catch (error) { showEventStorageError(categoryNotice, t`Не удалось добавить категорию. ${storageErrorMessage(error)} Черновик сохранён; повторите попытку после устранения причины.`); return; }
   renderWeekCategoryOptions(category.id);
   renderWeeklyCategoryList();
   categoryName.value = "";
-  showEventStorageError(categoryNotice, `Категория «${label}» добавлена и выбрана для события.`);
+  showEventStorageError(categoryNotice, t`Категория «${label}» добавлена и выбрана для события.`);
   categoryName.focus({ preventScroll: true });
 });
 
@@ -2229,7 +2302,7 @@ document.querySelector("#confirm-week-category-delete").addEventListener("click"
   try {
     checkWeeklyCategories();
     if (weeklyStorageBlocked || localStorage.getItem(weeklyEventStorageKey) !== weeklyStorageSnapshot) {
-      throw new Error("Недельные события недоступны или изменились в другой вкладке. Скопируйте черновик и перезагрузите страницу.");
+      throw new CalendarStorageError(t("Недельные события недоступны или изменились в другой вкладке. Скопируйте черновик и перезагрузите страницу."));
     }
     const previous = editingWeekEvent;
     const next = weeklyEvents.map((item) => item.category === category.id ? { ...item, category: "uncategorized" } : item);
@@ -2245,14 +2318,14 @@ document.querySelector("#confirm-week-category-delete").addEventListener("click"
     // Events first: if the category write fails, the category remains and deletion is retryable.
     saveWeeklyCategories(weeklyCategories.filter((item) => item.id !== category.id));
   } catch (error) {
-    showEventStorageError(categoryDeleteError, `${eventsUpdated ? "Связанные события уже сохранены без категории. " : ""}Категория не удалена. ${error.message} Повторите попытку после устранения причины.`);
+    showEventStorageError(categoryDeleteError, t`${eventsUpdated ? t("Связанные события уже сохранены без категории. ") : ""}Категория не удалена. ${storageErrorMessage(error)} Повторите попытку после устранения причины.`);
     return;
   }
   if (weekEventForm.elements.category.value === category.id) renderWeekCategoryOptions("uncategorized");
   else renderWeekCategoryOptions(weekEventForm.elements.category.value === "" && editingWeekEvent?.category === undefined
     ? undefined : weekEventForm.elements.category.value);
   renderWeeklyCategoryList();
-  showEventStorageError(categoryNotice, `Категория «${category.label}» удалена. События сохранены.`);
+  showEventStorageError(categoryNotice, t`Категория «${categoryDisplayName(category)}» удалена. События сохранены.`);
   returnToWeeklyCategories();
 });
 const weekSettingsDialog = document.querySelector("#week-settings");
@@ -2371,17 +2444,18 @@ weekRangeButton.addEventListener("click", () => {
   resizeWeekGrid(true, reduceMotion ? "instant" : "smooth");
 });
 
-function applyWeekRange() {
-  resizeWeekGrid(true);
+function applyWeekRange(scrollToRange = true) {
+  resizeWeekGrid(scrollToRange);
   const label = `${formatWeekTime(weekRange.rangeStart)}–${formatWeekTime(weekRange.rangeEnd)}`;
-  document.querySelector("#week-range-info").textContent = `Основной диапазон: ${label}`;
-  weekRangeButton.textContent = `Диапазон · ${label}`;
-  weekRangeButton.setAttribute("aria-label", `Вернуться к диапазону ${label}`);
+  document.querySelector("#week-range-info").textContent = t`Основной диапазон: ${label}`;
+  weekRangeButton.textContent = t`Диапазон · ${label}`;
+  weekRangeButton.setAttribute("aria-label", t`Вернуться к диапазону ${label}`);
 }
 
 function openWeekSettings() {
   if (weekView.hidden || activeDialog || restoreNeedsReload) return;
   weekSettingsSnapshot = undefined;
+  weekLanguage.value = interfaceLanguage;
   weekBackgroundInput.value = weekDaysContainer.style.getPropertyValue("--week-background") || defaultWeekBackground;
   firstDaySelect.value = firstWeekDay;
   timeStepSelect.value = String(weekTimeStep);
@@ -2390,12 +2464,13 @@ function openWeekSettings() {
   try {
     weekSettingsSnapshot = localStorage.getItem(settingsStorageKey);
     const settings = parseYearSettings(weekSettingsSnapshot);
+    weekLanguage.value = savedLanguage(settings);
     firstDaySelect.value = savedFirstWeekDay(settings);
     timeStepSelect.value = String(savedWeekTimeStep(settings));
     range = savedWeekRange(settings);
     weekBackgroundInput.value = savedWeekBackground(settings);
   } catch {
-    showEventStorageError(weekSettingsError, "Не удалось прочитать настройки. Исходные данные не изменены. Проверьте доступ к хранилищу или исправьте повреждённые данные и повторите попытку.");
+    showEventStorageError(weekSettingsError, t("Не удалось прочитать настройки. Исходные данные не изменены. Проверьте доступ к хранилищу или исправьте повреждённые данные и повторите попытку."));
   }
   rangeStartSelect.value = String(range.rangeStart);
   rangeEndSelect.value = String(range.rangeEnd);
@@ -2410,43 +2485,36 @@ function saveWeekSettings() {
   if (!weeklyDayKeys.includes(selected)) return;
   const timeStep = Number(timeStepSelect.value);
   if (![15, 30].includes(timeStep)) {
-    showEventStorageError(weekSettingsError, "Выберите шаг времени: 15 или 30 минут.");
+    showEventStorageError(weekSettingsError, t("Выберите шаг времени: 15 или 30 минут."));
     return;
   }
   const rangeStart = Number(rangeStartSelect.value);
   const rangeEnd = Number(rangeEndSelect.value);
   if (rangeStartSelect.value === "" || rangeEndSelect.value === ""
     || !validRangeStarts.includes(rangeStart) || !validRangeEnds.includes(rangeEnd) || rangeEnd <= rangeStart) {
-    showEventStorageError(weekSettingsError, "Выберите начало от 00:00 до 23:00 и конец от 01:00 до 24:00 с шагом один час. Конец должен быть позже начала.");
+    showEventStorageError(weekSettingsError, t("Выберите начало от 00:00 до 23:00 и конец от 01:00 до 24:00 с шагом один час. Конец должен быть позже начала."));
     return;
   }
-  try {
-    const raw = localStorage.getItem(settingsStorageKey);
-    const settings = parseYearSettings(raw);
-    if (weekSettingsSnapshot === undefined) {
-      showEventStorageError(weekSettingsError, "Не удалось проверить исходные настройки. Закройте настройки и откройте их снова.");
-      return;
+  if (!saveSettings(weekSettingsSnapshot, weekLanguage.value, settings => {
+    const range = savedWeekRange(settings);
+    if (rangeStart !== range.rangeStart || rangeEnd !== range.rangeEnd) {
+      Object.assign(settings, { rangeStart, rangeEnd });
     }
-    if (raw !== weekSettingsSnapshot) {
-      showEventStorageError(weekSettingsError, "Настройки изменились в другой вкладке. Сохранение остановлено. Запомните выбранные значения, закройте и снова откройте настройки, чтобы загрузить актуальные данные.");
-      return;
-    }
-    if (!Object.hasOwn(settings, "calendarBackground") || weekBackgroundInput.value !== savedWeekBackground(settings)) {
-      settings.calendarBackground = weekBackgroundInput.value;
-    }
-    localStorage.setItem(settingsStorageKey, JSON.stringify({ ...settings, firstDay: selected, rangeStart, rangeEnd, timeStep }));
-  } catch {
-    showEventStorageError(weekSettingsError, "Не удалось сохранить настройки недели. Исходные настройки не изменены. Проверьте данные, доступ к хранилищу и свободное место; повторите попытку или отмените выбор.");
-    return;
-  }
+    if (selected !== savedFirstWeekDay(settings)) settings.firstDay = selected;
+    if (timeStep !== savedWeekTimeStep(settings)) settings.timeStep = timeStep;
+    if (weekBackgroundInput.value !== savedWeekBackground(settings)) settings.calendarBackground = weekBackgroundInput.value;
+  }, weekSettingsError)) return;
+
+  const reposition = firstWeekDay !== selected || weekRange.rangeStart !== rangeStart || weekRange.rangeEnd !== rangeEnd;
   firstWeekDay = selected;
   applyWeekBackground(weekBackgroundInput.value);
   weekRange = { rangeStart, rangeEnd };
   weekTimeStep = timeStep;
-  renderSelectedWeek(displayedWeekDate, getSelectedWeek(displayedWeekDate));
-  scrollToSelectedWeekday();
-  applyWeekRange();
   closeDialog();
+  refreshLanguage(weekLanguage.value);
+  renderSelectedWeek(displayedWeekDate, getSelectedWeek(displayedWeekDate));
+  if (reposition) scrollToSelectedWeekday();
+  applyWeekRange(reposition);
 }
 
 // JS weekday numbers remain absolute; only their column positions depend on firstDay.
@@ -2505,7 +2573,7 @@ function loadWeeklyEvents() {
     weeklyEvents = parseWeeklyEvents(weeklyStorageSnapshot);
   } catch {
     weeklyStorageBlocked = true;
-    showEventStorageError(weekLoadError, "Не удалось загрузить недельные события: хранилище недоступно или данные повреждены либо не поддерживаются. Каждой записи нужна полная дата, одного дня недели недостаточно. Исходные данные не изменены; запись заблокирована. После восстановления данных или доступа перезагрузите страницу.");
+    showPersistentMessage(weekLoadError, "Не удалось загрузить недельные события: хранилище недоступно или данные повреждены либо не поддерживаются. Каждой записи нужна полная дата, одного дня недели недостаточно. Исходные данные не изменены; запись заблокирована. После восстановления данных или доступа перезагрузите страницу.");
   }
 }
 
@@ -2517,7 +2585,7 @@ function saveWeeklyEvents(nextEvents, errorElement) {
   }
   try {
     if (localStorage.getItem(weeklyEventStorageKey) !== weeklyStorageSnapshot) {
-      showEventStorageError(errorElement, "Недельные события изменились в другой вкладке после загрузки страницы. Запись остановлена. Скопируйте черновик и перезагрузите страницу, чтобы работать с актуальными данными.");
+      showEventStorageError(errorElement, t("Недельные события изменились в другой вкладке после загрузки страницы. Запись остановлена. Скопируйте черновик и перезагрузите страницу, чтобы работать с актуальными данными."));
       return false;
     }
     const serialized = JSON.stringify(nextEvents);
@@ -2525,7 +2593,7 @@ function saveWeeklyEvents(nextEvents, errorElement) {
     weeklyStorageSnapshot = serialized;
     weeklyEvents = nextEvents;
   } catch {
-    showEventStorageError(errorElement, "Не удалось сохранить недельные события. Записи и черновик не изменены. Проверьте доступ к хранилищу и свободное место; повторите попытку или отмените действие.");
+    showEventStorageError(errorElement, t("Не удалось сохранить недельные события. Записи и черновик не изменены. Проверьте доступ к хранилищу и свободное место; повторите попытку или отмените действие."));
     return false;
   }
   showEventStorageError(errorElement);
@@ -2572,20 +2640,20 @@ function parseWeeklyTemplates(raw) {
     || typeof item.title !== "string" || !item.title.trim()
     || ["description", "type", "category"].some((key) => item[key] !== undefined && typeof item[key] !== "string")
     || (item.colour !== undefined && typeof item.colour !== "string"))) {
-    throw new Error("Хранилище недельных шаблонов повреждено или не поддерживается.");
+    throw new CalendarStorageError(t("Хранилище недельных шаблонов повреждено или не поддерживается."));
   }
   return items;
 }
 
 function checkWeekTemplates() {
-  if (weekTemplateReadError) throw new Error("Не удалось прочитать шаблоны. Закройте и снова откройте форму после восстановления доступа или данных.");
+  if (weekTemplateReadError) throw new CalendarStorageError(t("Не удалось прочитать шаблоны. Закройте и снова откройте форму после восстановления доступа или данных."));
   if (localStorage.getItem(weeklyTemplateStorageKey) !== weekTemplateSnapshot) {
-    throw new Error("Шаблоны изменились в другой вкладке. Скопируйте черновик и снова откройте форму для загрузки актуальных данных.");
+    throw new CalendarStorageError(t("Шаблоны изменились в другой вкладке. Скопируйте черновик и снова откройте форму для загрузки актуальных данных."));
   }
 }
 
 function renderWeekTemplates() {
-  weekTemplateSelect.replaceChildren(new Option(weekTemplates.length ? "Без шаблона" : "Шаблонов пока нет", ""));
+  weekTemplateSelect.replaceChildren(new Option(weekTemplates.length ? t("Без шаблона") : t("Шаблонов пока нет"), ""));
   weekTemplates.forEach((template, index) => {
     weekTemplateSelect.add(new Option(`${template.title} · ${weekCategoryLabel(weeklyTemplateCategory(template))}`, String(index)));
   });
@@ -2597,7 +2665,7 @@ function setWeekTextFields(title, description) {
   const input = document.createElement(/[\r\n]/.test(title) ? "textarea" : "input");
   input.name = "title";
   input.required = true;
-  input.placeholder = fields.title.placeholder;
+  input.placeholder = t("Например: тренировка");
   input.maxLength = Math.max(60, title.length);
   input.value = title;
   fields.title.replaceWith(input);
@@ -2618,13 +2686,13 @@ weekTemplateSelect.addEventListener("change", () => {
     appliedWeekTemplate = null;
     beforeWeekTemplate = null;
     appliedWeekTemplateValue = "";
-    help.textContent = "Шаблон не меняет дату и время события.";
+    help.textContent = t("Шаблон не меняет дату и время события.");
     return;
   }
   try { checkWeekTemplates(); checkWeeklyCategories(); }
   catch (error) {
     weekTemplateSelect.value = appliedWeekTemplateValue;
-    showEventStorageError(weekTemplateNotice, error.message);
+    showEventStorageError(weekTemplateNotice, storageErrorMessage(error));
     return;
   }
   const template = weekTemplates[Number(weekTemplateSelect.value)];
@@ -2639,7 +2707,7 @@ weekTemplateSelect.addEventListener("change", () => {
   renderWeekCategoryOptions(category);
   setWeekEventColour(colour);
   appliedWeekTemplateValue = weekTemplateSelect.value;
-  help.textContent = `Шаблон заполнил название, категорию, цвет и описание.${typeof template.timeHint === "string" && /^\d{2}:\d{2}$/.test(template.timeHint) ? ` Обычное время: ${template.timeHint}.` : ""}${Number.isFinite(template.duration) && template.duration > 0 ? ` Обычная длительность: ${template.duration} мин.` : ""} Дата и время остались выбранными здесь.`;
+  help.textContent = t`Шаблон заполнил название, категорию, цвет и описание.${typeof template.timeHint === "string" && /^\d{2}:\d{2}$/.test(template.timeHint) ? t` Обычное время: ${template.timeHint}.` : ""}${Number.isFinite(template.duration) && template.duration > 0 ? t` Обычная длительность: ${template.duration} мин.` : ""} Дата и время остались выбранными здесь.`;
   showEventStorageError(weekTemplateNotice);
   fields.title.focus({ preventScroll: true });
 });
@@ -2648,14 +2716,14 @@ document.querySelector("#save-week-template").addEventListener("click", () => {
   if (activeDialog !== weekEventDialog || restoreNeedsReload) return;
   const fields = weekEventForm.elements;
   const title = fields.title.value.trim();
-  if (!title) { showEventStorageError(weekTemplateNotice, "Сначала укажите название события, не только пробелы."); fields.title.focus(); return; }
+  if (!title) { showEventStorageError(weekTemplateNotice, t("Сначала укажите название события, не только пробелы.")); fields.title.focus(); return; }
   const type = fields.category.value;
   const description = fields.description.value.trim();
   try {
     checkWeekTemplates();
     checkWeeklyCategories();
     if (weekTemplates.some((item) => item.title === title && weeklyTemplateCategory(item) === type && (item.description ?? "") === description)) {
-      showEventStorageError(weekTemplateNotice, "Такой шаблон уже сохранён. Само событие не изменилось.");
+      showEventStorageError(weekTemplateNotice, t("Такой шаблон уже сохранён. Само событие не изменилось."));
       return;
     }
     // Hints retain exact saved minutes, independently of the current input increment.
@@ -2673,8 +2741,8 @@ document.querySelector("#save-week-template").addEventListener("click", () => {
     const selected = weekTemplateSelect.value;
     renderWeekTemplates();
     weekTemplateSelect.value = selected;
-    showEventStorageError(weekTemplateNotice, "Шаблон сохранён. Само событие не сохранено этим действием.");
-  } catch (error) { showEventStorageError(weekTemplateNotice, `Не удалось сохранить шаблон. ${error.message} Черновик сохранён.`); }
+    showEventStorageError(weekTemplateNotice, t("Шаблон сохранён. Само событие не сохранено этим действием."));
+  } catch (error) { showEventStorageError(weekTemplateNotice, t`Не удалось сохранить шаблон. ${storageErrorMessage(error)} Черновик сохранён.`); }
 });
 
 function openWeekEventForm(eventToEdit = null, opener = addWeekEventButton, initialSlot = null) {
@@ -2695,15 +2763,15 @@ function openWeekEventForm(eventToEdit = null, opener = addWeekEventButton, init
     weekTemplates = parseWeeklyTemplates(weekTemplateSnapshot);
   } catch {
     weekTemplateReadError = true;
-    showEventStorageError(weekTemplateNotice, "Не удалось загрузить недельные шаблоны. Хранилище недоступно или повреждено; оно не будет перезаписано. Обычное событие можно сохранить отдельно.");
+    showEventStorageError(weekTemplateNotice, t("Не удалось загрузить недельные шаблоны. Хранилище недоступно или повреждено; оно не будет перезаписано. Обычное событие можно сохранить отдельно."));
   }
   renderWeekTemplates();
   document.querySelector("#week-template-field").hidden = Boolean(eventToEdit);
-  document.querySelector("#week-template-help").textContent = "Шаблон не меняет дату и время события. «Без шаблона» возвращает поля до применения.";
+  document.querySelector("#week-template-help").textContent = t("Шаблон не меняет дату и время события. «Без шаблона» возвращает поля до применения.");
   weekEventError.hidden = true;
   weekEventError.textContent = "";
-  document.querySelector("#week-event-title").textContent = eventToEdit ? "Редактировать событие" : "Новое событие";
-  weekEventForm.querySelector('[type="submit"]').textContent = eventToEdit ? "Сохранить изменения" : "Сохранить событие";
+  document.querySelector("#week-event-title").textContent = eventToEdit ? t("Редактировать событие") : t("Новое событие");
+  weekEventForm.querySelector('[type="submit"]').textContent = eventToEdit ? t("Сохранить изменения") : t("Сохранить событие");
   const fields = weekEventForm.elements;
   setWeekTextFields(eventToEdit?.title || "", eventToEdit?.description || "");
   fields.date.replaceChildren();
@@ -2723,7 +2791,7 @@ function openWeekEventForm(eventToEdit = null, opener = addWeekEventButton, init
     const savedTime = eventToEdit?.[field.name];
     if (savedTime !== undefined && savedTime % weekTimeStep !== 0) {
       const time = formatWeekTime(savedTime);
-      field.add(new Option(`${time} · сохранённое время`, time));
+      field.add(new Option(t`${time} · сохранённое время`, time));
     }
   }
   fields.title.value = eventToEdit?.title || "";
@@ -2737,19 +2805,19 @@ function openWeekEventForm(eventToEdit = null, opener = addWeekEventButton, init
 function validateWeekEvent(record, ignoredEvent = null) {
   const source = ignoredEvent || appliedWeekTemplate;
   if (!getSelectedWeek(displayedWeekDate).includes(record.date) || !isCalendarDate(record.date)) {
-    return "Выберите действительную дату этой недели.";
+    return t("Выберите действительную дату этой недели.");
   }
-  if (!record.title) return "Введите название события: одних пробелов недостаточно.";
+  if (!record.title) return t("Введите название события: одних пробелов недостаточно.");
   if (!categoryOptions().some(([id]) => id === record.category)
-    && (!source || record.category !== source.category)) return "Выберите категорию события.";
+    && (!source || record.category !== source.category)) return t("Выберите категорию события.");
   if (record.title.length > Math.max(60, source?.title.length || 0)
-    || record.description.length > Math.max(240, source?.description?.length || 0)) return "Название — до 60 символов, описание — до 240; длинные сохранённые значения можно сохранить без сокращения.";
+    || record.description.length > Math.max(240, source?.description?.length || 0)) return t("Название — до 60 символов, описание — до 240; длинные сохранённые значения можно сохранить без сокращения.");
   if (!Number.isFinite(record.start) || !Number.isFinite(record.end) || record.end <= record.start) {
-    return `Выберите начало и конец с шагом ${weekTimeStep} минут. Конец должен быть позже начала, не позднее 24:00.`;
+    return t`Выберите начало и конец с шагом ${weekTimeStep} минут. Конец должен быть позже начала, не позднее 24:00.`;
   }
-  if (!weeklyColours.some(([colour]) => colour === record.colour) && record.colour !== source?.colour) return "Выберите цвет события.";
+  if (!weeklyColours.some(([colour]) => colour === record.colour) && record.colour !== source?.colour) return t("Выберите цвет события.");
   const conflict = weeklyEvents.find((event) => event !== ignoredEvent && event.date === record.date && record.start < event.end && record.end > event.start);
-  return conflict ? `${formatDate(record.date)}: интервал пересекается с «${conflict.title}» (${formatWeekTime(conflict.start)}–${formatWeekTime(conflict.end)}). Выберите другое время.` : "";
+  return conflict ? t`${formatDate(record.date)}: интервал пересекается с «${conflict.title}» (${formatWeekTime(conflict.start)}–${formatWeekTime(conflict.end)}). Выберите другое время.` : "";
 }
 
 function submitWeekEvent(event) {
@@ -2774,7 +2842,7 @@ function submitWeekEvent(event) {
   if (error) return;
   const editedEvent = editingWeekEvent;
   try { checkWeeklyCategories(); }
-  catch (error) { showEventStorageError(weekEventError, error.message); return; }
+  catch (error) { showEventStorageError(weekEventError, storageErrorMessage(error)); return; }
   const updatedEvent = editedEvent
     ? { ...editedEvent, ...record }
     : { id: `created-${crypto.randomUUID()}`, ...record };
@@ -2843,7 +2911,7 @@ function renderWeekEvents() {
     card.style.setProperty("--weekly-event-colour", event.colour);
     const time = `${formatWeekTime(event.start)}–${formatWeekTime(event.end)}`;
     const category = weekCategoryLabel(event.category);
-    card.setAttribute("aria-label", `Редактировать: ${event.title}, ${formatDate(event.date)}, ${time}, ${category}${event.description ? ", " + event.description : ""}`);
+    card.setAttribute("aria-label", t`Редактировать: ${event.title}, ${formatDate(event.date)}, ${time}, ${category}${event.description ? ", " + event.description : ""}`);
     const content = document.createElement("span");
     content.className = "weekly-event-content";
     for (const [className, text] of [["weekly-event-time", time], ["weekly-event-name", event.title], ["weekly-event-note", event.description || category]]) {
@@ -2865,7 +2933,7 @@ weeklyColours.forEach(([colour, name]) => {
   button.className = "weekly-colour";
   button.dataset.weekColour = colour;
   button.style.setProperty("--weekly-event-colour", colour);
-  button.setAttribute("aria-label", name);
+  bindInterfaceAttribute(button, "aria-label", name);
   button.setAttribute("aria-pressed", String(colour === weeklyColours[0][0]));
   button.addEventListener("click", () => setWeekEventColour(colour));
   weekEventForm.querySelector(".weekly-event-colours").append(button);
@@ -2940,7 +3008,7 @@ function createWeekTimeScale() {
   scale.className = "weekly-time-scale";
   const corner = document.createElement("div");
   corner.className = "weekly-time-corner";
-  corner.textContent = "Время";
+  corner.textContent = t("Время");
   const labels = document.createElement("div");
   labels.className = "weekly-time-labels";
   for (let hour = 0; hour <= 24; hour += 1) {
@@ -2957,7 +3025,7 @@ function createWeekTimeScale() {
 function renderSelectedWeek(key, dates) {
   displayedWeekDate = key;
   weekDaysContainer.style.setProperty("--week-time-step", `calc(var(--week-hour-height) * ${weekTimeStep} / 60)`);
-  weekDaysContainer.parentElement.setAttribute("aria-label", `Недельная сетка с 00:00 до 24:00, шаг ${weekTimeStep} минут`);
+  weekDaysContainer.parentElement.setAttribute("aria-label", t`Недельная сетка с 00:00 до 24:00, шаг ${weekTimeStep} минут`);
   weekDaysContainer.replaceChildren(createWeekTimeScale());
   dates.forEach((date, index) => {
     const column = document.createElement("section");
@@ -2967,17 +3035,17 @@ function renderSelectedWeek(key, dates) {
     const weekday = document.createElement("span");
     weekday.className = "weekly-weekday";
     const weekdayNumber = (weeklyDayKeys.indexOf(firstWeekDay) + index) % 7;
-    weekday.textContent = weekDays[(weekdayNumber + 6) % 7] + (date === key ? " · выбрано" : "");
+    weekday.textContent = t(weekDays[(weekdayNumber + 6) % 7]) + (date === key ? t(" · выбрано") : "");
     const label = document.createElement(date ? "time" : "span");
     label.className = "weekly-date";
     if (date) {
       column.dataset.date = date;
       label.dateTime = date;
       const [, month, day] = date.split("-").map(Number);
-      label.textContent = `${day} ${monthNamesGenitive[month - 1]}`;
-      column.setAttribute("aria-label", `${formatDate(date)}${date === key ? ", выбранная дата" : ""}`);
+      label.textContent = formatDayMonth(day, month);
+      column.setAttribute("aria-label", `${formatDate(date)}${date === key ? t(", выбранная дата") : ""}`);
     } else {
-      label.textContent = "Вне диапазона";
+      label.textContent = t("Вне диапазона");
       column.classList.add("unavailable");
       column.setAttribute("aria-disabled", "true");
     }
@@ -2992,7 +3060,7 @@ function renderSelectedWeek(key, dates) {
   renderWeekEvents();
   const valid = dates.filter(Boolean);
   document.querySelector("#week-range").textContent = `${formatDate(valid[0])} — ${formatDate(valid.at(-1))}`;
-  document.querySelector("#week-selected").textContent = `Выбран день: ${formatDate(key)}`;
+  document.querySelector("#week-selected").textContent = t`Выбран день: ${formatDate(key)}`;
   document.querySelector("#week-boundary").hidden = valid.length === 7;
   weekNavigationButtons.forEach((button) => {
     button.setAttribute("aria-disabled", String(adjacentWeekDate(Number(button.dataset.weekNav)) === null));
@@ -3059,7 +3127,7 @@ function createDayRow(year, monthIndex, day) {
   number.className = "date-number";
   number.dataset.date = row.dataset.date;
   number.dataset.action = "open-week";
-  number.setAttribute("aria-label", `Открыть неделю, ${formatDate(row.dataset.date)}`);
+  number.setAttribute("aria-label", t`Открыть неделю, ${formatDate(row.dataset.date)}`);
   number.textContent = day;
 
   const weekday = document.createElement("button");
@@ -3067,7 +3135,7 @@ function createDayRow(year, monthIndex, day) {
   weekday.className = "cell-weekday";
   weekday.dataset.date = getDateKey(year, monthIndex, day);
   weekday.dataset.action = "create-event";
-  weekday.setAttribute("aria-label", `Создать ещё одно событие, ${formatDate(weekday.dataset.date)}`);
+  weekday.setAttribute("aria-label", t`Создать ещё одно событие, ${formatDate(weekday.dataset.date)}`);
   const label = document.createElement("span");
   label.className = "weekday-label";
   label.textContent = getWeekday(year, monthIndex, day);
@@ -3246,13 +3314,13 @@ function prepareEventForm(key, event = null) {
   setEventColour(event ? event.colour : toEventColour("yellow"));
   nameInput.setCustomValidity("");
   placedThoughtText.setCustomValidity("");
-  document.querySelector("#yearly-event-title").textContent = event ? "Редактировать событие" : "Новое событие";
-  eventForm.querySelector("[type=submit]").textContent = event ? "Сохранить изменения" : "Создать событие";
+  document.querySelector("#yearly-event-title").textContent = event ? t("Редактировать событие") : t("Новое событие");
+  eventForm.querySelector("[type=submit]").textContent = event ? t("Сохранить изменения") : t("Создать событие");
   if (event) {
     getEventTitleInput().value = event.title;
     eventForm.elements.description.value = event.description;
   }
-  document.querySelector("#yearly-event-date").textContent = `Дата: ${formatDate(creationDate)}`;
+  document.querySelector("#yearly-event-date").textContent = t`Дата: ${formatDate(creationDate)}`;
 }
 
 function openCreationForm(key, opener = null, fromList = false) {
@@ -3273,7 +3341,7 @@ function openEventCard(key, index, opener = null, fromList = false) {
   document.querySelector("#event-card-title").textContent = event.title;
   document.querySelector("#event-card-date").textContent = formatDate(key);
   document.querySelector("#event-card-colour").textContent = getEventColourName(event.colour);
-  document.querySelector("#event-card-description").textContent = event.description || "Без описания";
+  document.querySelector("#event-card-description").textContent = event.description || t("Без описания");
   openDialog(cardDialog, opener, cardDialog.querySelector("[data-close-dialog]"));
 }
 
@@ -3305,7 +3373,7 @@ function requestDeletion() {
   if (!selectedEvent) return;
   templateNotice.hidden = true;
   showThoughtError(thoughtReturnError, "");
-  deleteNotice.textContent = `Удалить событие «${selectedEvent.event.title}»?`;
+  deleteNotice.textContent = t`Удалить событие «${selectedEvent.event.title}»?`;
   setDeleteConfirmation(true);
   cancelDeleteButton.focus({ preventScroll: true });
 }
@@ -3354,7 +3422,7 @@ function dismissDialog() {
     pendingRestore = null;
     openDialog(settingsDialog, null, importButton);
   }
-  else if (activeDialog === templateFutureDialog) finishTemplateUpdate("Шаблон сохранён. События оставлены без изменений.");
+  else if (activeDialog === templateFutureDialog) finishTemplateUpdate(t("Шаблон сохранён. События оставлены без изменений."));
   else if (activeDialog === templateDialog) showTemplateLibrary(activeTemplateId);
   else if (activeDialog === templateDeleteDialog) openDialog(templateDialog, null, templateDeleteButton);
   else if (activeDialog === thoughtDeleteDialog) cancelThoughtDeletion();
@@ -3370,7 +3438,7 @@ function createListEvent(event, index) {
   button.className = "day-event-row";
   if (selectedEventFilters.has(event.title)) {
     button.classList.add("is-filtered");
-    button.setAttribute("aria-label", `${event.title}, ${event.description || "Без описания"}; совпадает с фильтром`);
+    button.setAttribute("aria-label", t`${event.title}, ${event.description || t("Без описания")}; совпадает с фильтром`);
   }
   button.dataset.eventIndex = index;
   const dot = document.createElement("span");
@@ -3383,7 +3451,7 @@ function createListEvent(event, index) {
   name.textContent = event.title;
   const description = document.createElement("span");
   description.className = "day-event-description";
-  description.textContent = event.description || "Без описания";
+  description.textContent = event.description || t("Без описания");
   copy.append(name, description);
   button.append(dot, copy);
   return button;
@@ -3425,10 +3493,10 @@ function submitEvent(event) {
   const targetDate = editingEvent ? eventDateInput.value : sourceDate;
   const targetYear = Number(targetDate.slice(0, 4));
   const validDate = isCalendarDate(targetDate) && targetYear >= minimumYear && targetYear <= maximumYear;
-  eventDateInput.setCustomValidity(editingEvent && !validDate ? "Введите существующую дату от 01.01.0001 до 31.12.9999." : "");
+  eventDateInput.setCustomValidity(editingEvent && !validDate ? t("Введите существующую дату от 01.01.0001 до 31.12.9999.") : "");
   const titleInput = getEventTitleInput();
   const title = titleInput.value.trim();
-  titleInput.setCustomValidity(title ? "" : (placedEvents.has(editingEvent) ? "Введите текст мысли." : "Введите название события."));
+  titleInput.setCustomValidity(title ? "" : (placedEvents.has(editingEvent) ? t("Введите текст мысли.") : t("Введите название события.")));
   if (!eventForm.reportValidity() || !validDate) return;
 
   const changes = {
@@ -3797,8 +3865,8 @@ createColourPalette(thoughtColourPalette, (colour) => colour, setThoughtColour);
 createColourPalette(eventColourPalette, toEventColour, setEventColour);
 createColourPalette(dayMarkPalette, (colour) => colour, setCalendarToolColour);
 setCalendarToolColour(activeCalendarToolColour);
-loadDayMarks();
 loadYearScale();
+loadDayMarks();
 loadWeekSettings();
 loadYearEvents();
 loadWeeklyEvents();
