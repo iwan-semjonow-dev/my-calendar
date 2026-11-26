@@ -3068,7 +3068,7 @@ function renderSelectedWeek(key, dates) {
 }
 
 function openSelectedWeek(key, opener) {
-  if (activeDialog || activeCalendarTool || calendarPlacement || draggedThoughtId || restoreNeedsReload || !weekView.hidden) return;
+  if (activeDialog || draggedThoughtId || restoreNeedsReload || !weekView.hidden) return;
   const dates = getSelectedWeek(key);
   if (!dates.length) return;
   yearlyReturnContext = { key, opener, left: calendarScroll.scrollLeft, x: window.scrollX, y: window.scrollY };
@@ -3108,6 +3108,9 @@ function returnToYear() {
   yearlyReturnContext = null;
 }
 
+document.querySelector("#open-current-week").addEventListener("click", event => {
+  openSelectedWeek(localTodayKey(), event.currentTarget);
+});
 document.querySelector("#back-to-year").addEventListener("click", returnToYear);
 weekNavigationButtons.forEach((button) => button.addEventListener("click", () => navigateWeek(Number(button.dataset.weekNav))));
 document.querySelector("#week-today").addEventListener("click", goToCurrentWeek);
@@ -3712,7 +3715,7 @@ document.querySelector(".calendar-panel").addEventListener("click", (event) => {
   if (activeCalendarTool && !event.target.closest(".calendar-cell[data-date], [data-calendar-tool], #day-mark-palette button, [data-go-today]")) setCalendarTool(null);
 });
 document.addEventListener("keydown", (event) => {
-  if (event.key === "Escape" && !activeDialog) {
+  if (event.key === "Escape" && !activeDialog && !app.hidden) {
     stopCalendarPlacement();
     setCalendarTool(null);
   }

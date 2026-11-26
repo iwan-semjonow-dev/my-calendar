@@ -62,7 +62,7 @@ Manually add an event to the chronological history strip as an independent snaps
 
 ### Open a week and return to the year
 
-Click the **day number** in the yearly calendar to open the week containing that date. While a marking tool or a batch date selection is active, the number serves that operation. The arrows (**Предыдущая неделя** and **Следующая неделя**) move one week at a time and keep the selected weekday where possible. Navigation stops at years 0001 and 9999, with out-of-range days unavailable. **Сегодня** selects today's local date. **← Годовой календарь** returns to the original year, restores the scroll position, and focuses the day number you opened, even after browsing other weeks.
+Click **Неделя** / **Woche** beside the yearly heading to open the current week with today selected, from any year. To open another date's week, click its **day number**. While a marking tool or a batch date selection is active, the number serves that operation. The arrows (**Предыдущая неделя** and **Следующая неделя**) move one week at a time and keep the selected weekday where possible. Navigation stops at years 0001 and 9999, with out-of-range days unavailable. **Сегодня** selects today's local date. **← Годовой календарь** restores the original year and scroll position and returns focus to the button or day number that opened the week.
 
 ### Create, edit, or delete an event
 

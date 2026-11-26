@@ -287,6 +287,7 @@ const germanMessages = {
   "Разместить": "Einplanen",
   "Отмена": "Abbrechen",
   "Недельный календарь": "Wochenkalender",
+  "Неделя": "Woche",
   "← Годовой календарь": "← Jahreskalender",
   "Диапазон": "Kernzeit",
   "＋ Добавить событие": "＋ Termin hinzufügen",
