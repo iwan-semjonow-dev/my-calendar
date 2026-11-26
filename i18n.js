@@ -420,10 +420,11 @@ const interfaceMessages = {
   "ru-RU": Object.fromEntries(Object.keys(germanMessages).map(key => [key, key])),
   "de-DE": germanMessages,
 };
-let interfaceLanguage = "ru-RU";
+const defaultInterfaceLanguage = "de-DE";
+let interfaceLanguage = defaultInterfaceLanguage;
 
 function savedLanguage(settings) {
-  return settings.language === "de-DE" ? "de-DE" : "ru-RU";
+  return settings.language === "ru-RU" ? "ru-RU" : defaultInterfaceLanguage;
 }
 
 // Tagged templates keep user values separate from the translated sentence.

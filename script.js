@@ -581,13 +581,14 @@ function applyYearScale(scale) {
 }
 
 function loadYearScale() {
+  let settings = {};
   try {
-    const settings = readYearSettings();
-    setInterfaceLanguage(savedLanguage(settings));
-    yearScale = yearScales.includes(settings.yearScale) ? settings.yearScale : "standard";
+    settings = readYearSettings();
   } catch {
     showSettingsError(t("Не удалось прочитать настройки. Используется обычный масштаб. Исходные данные не изменены."));
   }
+  setInterfaceLanguage(savedLanguage(settings));
+  yearScale = yearScales.includes(settings.yearScale) ? settings.yearScale : "standard";
   applyYearScale(yearScale);
 }
 

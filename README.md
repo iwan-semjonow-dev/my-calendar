@@ -8,7 +8,7 @@ A yearly event records what happens on a date. A weekly event reserves a start a
 
 1. Clone the repository, or download and extract its ZIP archive.
 2. From the project folder, open `index.html` in a modern browser. Keep `styles.css`, `i18n.js` and `script.js` beside it. No installation, build step, or server is required.
-3. The interface starts in Russian. In either calendar, open **Настройки → Язык интерфейса** / **Einstellungen → Sprache**, choose **Русский** or **Deutsch**, and save. Both views switch immediately and remember your choice. Your entries and custom category names keep their original text.
+3. The interface starts in German. In either calendar, open **Einstellungen → Sprache** / **Настройки → Язык интерфейса**, choose **Deutsch** or **Русский**, and save. Both views switch immediately and remember your choice. Your entries and custom category names keep their original text.
 
 Direct-file (`file://`) storage varies by browser. Save a test event and reload before relying on it. If you later serve the same files over HTTP, the calendar saved under the file address may be unavailable there. To carry your data across, [create a backup](#create-a-backup) at the original address and [restore it](#restore-a-backup) at the new one. Use a separate browser profile and artificial records for testing.
 
@@ -140,7 +140,7 @@ In a full backup, an empty weekly list clears that collection. A backup made wit
 
 Records are not merged. Selecting a file, cancelling, closing the confirmation, pressing Escape, or clicking its backdrop does not write changes. Unrelated browser storage keys are left alone.
 
-After all sections have been written and verified, the page reloads with the restored data and settings. Temporary selections, drafts, and the unsaved scale preview are reset. You can select the same file again if another attempt is needed.
+After all sections have been written and verified, the page reloads with the restored data and settings. A backup with a supported language restores that choice. If the language is missing or unsupported, the calendar opens in German. Temporary selections, drafts, and the unsaved scale preview are reset. You can select the same file again if another attempt is needed.
 
 ### Move data to another device
 
