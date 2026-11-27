@@ -72,6 +72,9 @@ const ringShapes = [
 ];
 const yearNavigationButtons = [...document.querySelectorAll("[data-year-nav]")];
 const todayButton = document.querySelector("[data-go-today]");
+const dayHelper = todayButton.closest(".day-helper");
+const helperTools = document.querySelector("#day-helper-tools");
+const helperSwatch = dayHelper.querySelector(".day-helper-swatch");
 let todayFocusTimer = null;
 const app = document.querySelector(".app");
 const creationDialog = document.querySelector("#yearly-event-dialog");
@@ -250,11 +253,28 @@ function setCalendarTool(tool) {
   activeCalendarTool = activeCalendarTool === tool ? null : tool;
   calendarToolButtons.forEach((button) => button.setAttribute("aria-pressed", String(button.dataset.calendarTool === activeCalendarTool)));
   calendar.classList.toggle("day-tool-active", Boolean(activeCalendarTool));
+  updateHelperIndicator();
 }
 
 function setCalendarToolColour(colour) {
   activeCalendarToolColour = colour;
   updateColourPalette(dayMarkPalette, colour);
+  updateHelperIndicator();
+}
+
+function updateHelperIndicator() {
+  const { fill, ring } = dayMarkColours[activeCalendarToolColour];
+  dayHelper.style.setProperty("--mark-fill", fill);
+  dayHelper.style.setProperty("--mark-ring", ring);
+  dayHelper.dataset.tool = activeCalendarTool || "";
+  const tool = calendarToolButtons.find(button => button.dataset.calendarTool === activeCalendarTool);
+  const badge = dayHelper.querySelector(".day-helper-badge");
+  badge.replaceChildren();
+  if (tool && activeCalendarTool !== "ring") badge.append(tool.querySelector("svg").cloneNode(true));
+  const colour = dayMarkPalette.querySelector('[aria-pressed="true"]')?.getAttribute("aria-label");
+  document.querySelector("#day-helper-state").textContent = tool
+    ? [tool.getAttribute("aria-label"), activeCalendarTool !== "erase" && colour].filter(Boolean).join(", ") : "";
+  helperSwatch.setAttribute("aria-label", [t("Цвет отметки дня"), colour].filter(Boolean).join(", "));
 }
 
 function applyDayMark(cell) {
@@ -639,6 +659,7 @@ function saveSettings(snapshot, language, update, errorElement) {
 function refreshLanguage(language) {
   if (language === interfaceLanguage) return;
   setInterfaceLanguage(language);
+  updateHelperIndicator();
   const left = calendarScroll.scrollLeft;
   renderCalendar(displayedYear);
   syncYearFilters();
@@ -3817,7 +3838,131 @@ yearNavigationButtons.forEach((button) => button.addEventListener("click", () =>
 }));
 
 settingsButton.addEventListener("click", openYearSettings);
-todayButton.addEventListener("click", goToToday);
+function initDayHelper() {
+  const positionKey = "my-calendar-year-helper-position-v1";
+  let drag = null;
+  let skipClick = false;
+  let keyboardFocus = false;
+  let closeTimer;
+
+  function place(x, y) {
+    dayHelper.style.setProperty("--helper-x", `${x}px`);
+    dayHelper.style.setProperty("--helper-y", `${y}px`);
+  }
+
+  try {
+    const saved = JSON.parse(localStorage.getItem(positionKey));
+    if (Number.isFinite(saved?.x) && Number.isFinite(saved?.y)) place(saved.x, saved.y);
+  } catch { /* Use the bottom-right corner when the preference is unavailable. */ }
+
+  function fitPalette() {
+    if (dayMarkPalette.hidden) return;
+    const bounds = dayHelper.getBoundingClientRect();
+    const above = bounds.top;
+    const below = document.documentElement.clientHeight - bounds.bottom;
+    dayHelper.classList.toggle("palette-above", above > below);
+    dayHelper.style.setProperty("--palette-space", `${Math.max(0, Math.max(above, below) - 4)}px`);
+    const left = Math.min(bounds.left, document.documentElement.clientWidth - dayMarkPalette.offsetWidth - 4);
+    dayHelper.style.setProperty("--palette-left", `${Math.max(4, left) - bounds.left}px`);
+  }
+
+  function showPalette(open) {
+    dayMarkPalette.hidden = !open;
+    helperSwatch.setAttribute("aria-expanded", String(open));
+    fitPalette();
+  }
+
+  function expand(open) {
+    clearTimeout(closeTimer);
+    if (!open) {
+      if (helperTools.contains(document.activeElement)) todayButton.focus({ preventScroll: true });
+      showPalette(false);
+    }
+    helperTools.hidden = !open;
+    dayHelper.classList.toggle("expanded", open);
+    todayButton.setAttribute("aria-expanded", String(open));
+  }
+
+  dayHelper.addEventListener("pointerenter", event => {
+    if (event.pointerType === "mouse") expand(true);
+  });
+  dayHelper.addEventListener("pointerleave", event => {
+    if (event.pointerType === "mouse" && !keyboardFocus && !drag) {
+      closeTimer = setTimeout(() => expand(false), 160);
+    }
+  });
+  dayHelper.addEventListener("focusin", event => {
+    if (event.target.matches(":focus-visible")) {
+      keyboardFocus = true;
+      expand(true);
+    }
+  });
+  dayHelper.addEventListener("focusout", event => {
+    if (!dayHelper.contains(event.relatedTarget)) {
+      keyboardFocus = false;
+      expand(false);
+    }
+  });
+  dayHelper.addEventListener("keydown", event => {
+    keyboardFocus = true;
+    if (event.target === todayButton && event.key === "ArrowDown") {
+      event.preventDefault();
+      expand(true);
+      calendarToolButtons[0].focus({ preventScroll: true });
+      return;
+    }
+    if (event.key !== "Escape" || helperTools.hidden) return;
+    event.stopPropagation();
+    if (dayMarkPalette.hidden) expand(false);
+    else {
+      helperSwatch.focus({ preventScroll: true });
+      showPalette(false);
+    }
+  });
+  document.addEventListener("pointerdown", event => {
+    keyboardFocus = false;
+    if (!helperTools.hidden && !dayHelper.contains(event.target)) expand(false);
+  }, true);
+  helperSwatch.addEventListener("click", () => showPalette(dayMarkPalette.hidden));
+  window.addEventListener("resize", fitPalette);
+
+  todayButton.addEventListener("pointerdown", event => {
+    if (!event.isPrimary || event.button !== 0) return;
+    const bounds = dayHelper.getBoundingClientRect();
+    drag = { id: event.pointerId, startX: event.clientX, startY: event.clientY,
+      left: bounds.left, top: bounds.top, moved: false };
+    skipClick = event.pointerType === "touch" && helperTools.hidden;
+    todayButton.setPointerCapture(event.pointerId);
+  });
+  todayButton.addEventListener("pointermove", event => {
+    if (!drag || drag.id !== event.pointerId) return;
+    const dx = event.clientX - drag.startX;
+    const dy = event.clientY - drag.startY;
+    if (!drag.moved && Math.hypot(dx, dy) < 5) return;
+    drag.moved = true;
+    skipClick = true;
+    place(drag.left + dx, drag.top + dy);
+    fitPalette();
+  });
+  todayButton.addEventListener("pointerup", event => {
+    if (!drag || drag.id !== event.pointerId) return;
+    if (drag.moved) {
+      const { left: x, top: y } = dayHelper.getBoundingClientRect();
+      place(x, y);
+      try { localStorage.setItem(positionKey, JSON.stringify({ x, y })); }
+      catch { /* The position still applies for this session. */ }
+    }
+    drag = null;
+  });
+  todayButton.addEventListener("lostpointercapture", () => { drag = null; });
+  todayButton.addEventListener("click", event => {
+    if (event.detail && skipClick) {
+      skipClick = false;
+      expand(true);
+    } else goToToday();
+  });
+}
+initDayHelper();
 scaleButtons.forEach((button) => button.addEventListener("click", () => {
   yearScaleDraft = button.dataset.yearScale;
   applyYearScale(yearScaleDraft);
@@ -3868,8 +4013,8 @@ createColourPalette(templatePalette, toEventColour, setTemplateColour);
 createColourPalette(thoughtColourPalette, (colour) => colour, setThoughtColour);
 createColourPalette(eventColourPalette, toEventColour, setEventColour);
 createColourPalette(dayMarkPalette, (colour) => colour, setCalendarToolColour);
-setCalendarToolColour(activeCalendarToolColour);
 loadYearScale();
+setCalendarToolColour(activeCalendarToolColour);
 loadDayMarks();
 loadWeekSettings();
 loadYearEvents();

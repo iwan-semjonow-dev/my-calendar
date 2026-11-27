@@ -38,6 +38,8 @@ A date can hold several events, with a counter for additional entries. An empty 
 
 A shared 16-colour palette is available for thoughts, events, templates, and day marks. Filters use event titles from the displayed year to highlight matches and dim other entries, while keeping every date in the grid.
 
+Hover over or tab to the floating **Heute** / **Сегодня** button to reveal the day tools. Choose the fill on the left, the outline below, or the eraser above. The swatch on the right opens the palette. The circle shows the active tool when you move back to the calendar. Click the centre to go to today, or drag it to move the helper. Its position is remembered in this browser. On a touchscreen, tap once to expand and tap the centre again to go to today.
+
 Day fills and hand-drawn rounded outlines are independent layers and can coexist on a date without changing its events. The eraser removes a chosen fill, outline, all events on that date, or all these layers together. Any operation that removes events requires confirmation. Erasing a scheduled thought deletes it rather than returning it to the thought strip; history snapshots and templates are unaffected. Press Escape or click the active tool again to leave marking mode.
 
 ### Thoughts and scheduling

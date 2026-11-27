@@ -10,9 +10,6 @@
   </head>
   <body>
     <div class="app" id="year-view">
-      <header class="app-header">
-        <p class="app-name">My Calendar</p>
-      </header>
       <main>
         <div class="calendar-heading">
           <div class="calendar-title-group">
@@ -52,27 +49,26 @@
           </div>
         </section>
         <p class="settings-error" id="event-load-error" role="alert" hidden></p>
-        <section
-          class="calendar-panel"
-          aria-labelledby="calendar-title"
-        >
-          <div class="calendar-controls">
-            <button class="nav-button" type="button" data-go-today>Сегодня</button>
-            <div class="calendar-tools" role="group" aria-label="Инструменты дня">
-              <div class="calendar-tool-buttons" role="group" aria-label="Выберите инструмент">
-                <button class="calendar-tool-button" type="button" data-calendar-tool="fill" aria-pressed="false" title="Заливка" aria-label="Заливка">
-                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6.5 11.5 6-6 5 5-6 6zM5 16h8M17.8 15.8a2.2 2.2 0 1 1-4.4 0c0-1.2 2.2-4 2.2-4s2.2 2.8 2.2 4Z" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" /></svg>
-                </button>
-                <button class="calendar-tool-button" type="button" data-calendar-tool="ring" aria-pressed="false" title="Круглая обводка" aria-label="Круглая обводка">
-                  <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="6.5" fill="none" stroke="currentColor" stroke-width="2" /><path d="M17.5 6.5 20 4" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.8" /></svg>
-                </button>
-                <button class="calendar-tool-button erase" type="button" data-calendar-tool="erase" aria-pressed="false" title="Ластик" aria-label="Ластик">
-                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 18-3-3 8-8 5 5-6 6zM11 18h8" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" /></svg>
-                </button>
-              </div>
-              <div class="calendar-tool-colour-palette" id="day-mark-palette" role="group" aria-label="Цвет отметки дня"></div>
-            </div>
+        <div class="day-helper" role="group" aria-label="Инструменты дня">
+          <button class="day-helper-center" type="button" data-go-today aria-expanded="false" aria-controls="day-helper-tools" aria-describedby="day-helper-state" aria-keyshortcuts="ArrowDown">
+            Сегодня<span class="day-helper-badge" aria-hidden="true"></span>
+          </button>
+          <span id="day-helper-state" hidden></span>
+          <div id="day-helper-tools" hidden>
+            <button class="calendar-tool-button" type="button" data-calendar-tool="fill" aria-pressed="false" title="Заливка" aria-label="Заливка">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6.5 11.5 6-6 5 5-6 6zM5 16h8M17.8 15.8a2.2 2.2 0 1 1-4.4 0c0-1.2 2.2-4 2.2-4s2.2 2.8 2.2 4Z" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" /></svg>
+            </button>
+            <button class="calendar-tool-button" type="button" data-calendar-tool="ring" aria-pressed="false" title="Круглая обводка" aria-label="Круглая обводка">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="6.5" fill="none" stroke="currentColor" stroke-width="2" /><path d="M17.5 6.5 20 4" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.8" /></svg>
+            </button>
+            <button class="calendar-tool-button erase" type="button" data-calendar-tool="erase" aria-pressed="false" title="Ластик" aria-label="Ластик">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 18-3-3 8-8 5 5-6 6zM11 18h8" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" /></svg>
+            </button>
+            <button class="calendar-tool-button day-helper-swatch" type="button" aria-expanded="false" aria-controls="day-mark-palette" aria-label="Цвет отметки дня" title="Цвет отметки дня"></button>
+            <div class="calendar-tool-colour-palette" id="day-mark-palette" role="group" aria-label="Цвет отметки дня" hidden></div>
           </div>
+        </div>
+        <section class="calendar-panel" aria-labelledby="calendar-title">
           <p class="settings-error day-mark-error" id="day-mark-error" role="alert" hidden></p>
           <div class="calendar-scroll" tabindex="0">
             <div class="year-columns">
