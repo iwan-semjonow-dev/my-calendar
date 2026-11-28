@@ -1,0 +1,24 @@
+{
+  "format": "my-calendar-monthly-plan",
+  "version": 1,
+  "month": "2026-12",
+  "timeZone": "Europe/Berlin",
+  "events": [
+    {
+      "sourceId": "example-react-2026-12-08",
+      "date": "2026-12-08",
+      "start": "18:30",
+      "end": "22:00",
+      "title": "Школа: React",
+      "description": "Практика по компонентам"
+    },
+    {
+      "sourceId": "example-german-2026-12-17",
+      "date": "2026-12-17",
+      "start": "09:15",
+      "end": "10:00",
+      "title": "Deutsch: Vorstellungsgespräch",
+      "description": ""
+    }
+  ]
+}

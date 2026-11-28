@@ -2626,12 +2626,12 @@ function formatWeekTime(minutes) {
   return `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
 }
 
-function parseWeekTime(value, allowEndOfDay = false) {
+function parseWeekTime(value, allowEndOfDay = false, step = weekTimeStep) {
   if (allowEndOfDay && value === "24:00") return 1440;
-  if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(value)) return NaN;
+  if (typeof value !== "string" || !/^([01]\d|2[0-3]):[0-5]\d$/.test(value)) return NaN;
   const [hour, minute] = value.split(":").map(Number);
   const minutes = hour * 60 + minute;
-  return minutes % weekTimeStep === 0 ? minutes : NaN;
+  return minutes % step === 0 ? minutes : NaN;
 }
 
 function setWeekEventColour(colour) {
@@ -2767,6 +2767,10 @@ document.querySelector("#save-week-template").addEventListener("click", () => {
   } catch (error) { showEventStorageError(weekTemplateNotice, t`Не удалось сохранить шаблон. ${storageErrorMessage(error)} Черновик сохранён.`); }
 });
 
+function defaultWeekCategory() {
+  return weeklyCategories.find(item => item.id === "study")?.id || weeklyCategories[0]?.id || "uncategorized";
+}
+
 function openWeekEventForm(eventToEdit = null, opener = addWeekEventButton, initialSlot = null) {
   if (weekView.hidden || activeDialog || restoreNeedsReload) return;
   if (eventToEdit && !weeklyEvents.includes(eventToEdit)) return;
@@ -2801,8 +2805,7 @@ function openWeekEventForm(eventToEdit = null, opener = addWeekEventButton, init
     fields.date.add(new Option(formatDate(date), date));
   });
   fields.date.value = eventToEdit?.date || initialSlot?.date || displayedWeekDate;
-  const category = eventToEdit ? eventToEdit.category
-    : weeklyCategories.find((item) => item.id === "study")?.id || weeklyCategories[0]?.id || "uncategorized";
+  const category = eventToEdit ? eventToEdit.category : defaultWeekCategory();
   renderWeekCategoryOptions(category);
   for (const [field, first, last] of [[fields.start, 0, 1440 - weekTimeStep], [fields.end, weekTimeStep, 1440]]) {
     field.replaceChildren();
@@ -2824,23 +2827,242 @@ function openWeekEventForm(eventToEdit = null, opener = addWeekEventButton, init
   openDialog(weekEventDialog, opener, fields.title);
 }
 
-function validateWeekEvent(record, ignoredEvent = null) {
-  const source = ignoredEvent || appliedWeekTemplate;
-  if (!getSelectedWeek(displayedWeekDate).includes(record.date) || !isCalendarDate(record.date)) {
-    return t("Выберите действительную дату этой недели.");
-  }
-  if (!record.title) return t("Введите название события: одних пробелов недостаточно.");
+function validateWeekEventFields(record, source, step) {
+  if (!record.title.trim()) return t("Введите название события: одних пробелов недостаточно.");
   if (!categoryOptions().some(([id]) => id === record.category)
     && (!source || record.category !== source.category)) return t("Выберите категорию события.");
   if (record.title.length > Math.max(60, source?.title.length || 0)
     || record.description.length > Math.max(240, source?.description?.length || 0)) return t("Название — до 60 символов, описание — до 240; длинные сохранённые значения можно сохранить без сокращения.");
   if (!Number.isFinite(record.start) || !Number.isFinite(record.end) || record.end <= record.start) {
-    return t`Выберите начало и конец с шагом ${weekTimeStep} минут. Конец должен быть позже начала, не позднее 24:00.`;
+    if (step) return t`Выберите начало и конец с шагом ${step} минут. Конец должен быть позже начала, не позднее 24:00.`;
+    return t("Укажите время в формате ЧЧ:ММ. Конец должен быть позже начала; 24:00 допустимо только для конца.");
   }
   if (!weeklyColours.some(([colour]) => colour === record.colour) && record.colour !== source?.colour) return t("Выберите цвет события.");
-  const conflict = weeklyEvents.find((event) => event !== ignoredEvent && event.date === record.date && record.start < event.end && record.end > event.start);
-  return conflict ? t`${formatDate(record.date)}: интервал пересекается с «${conflict.title}» (${formatWeekTime(conflict.start)}–${formatWeekTime(conflict.end)}). Выберите другое время.` : "";
+  return "";
 }
+
+function weekEventsOverlap(a, b) {
+  return a.date === b.date && a.start < b.end && b.start < a.end;
+}
+
+function weekOverlapMessage(record, conflict) {
+  return t`${formatDate(record.date)}: интервал пересекается с «${conflict.title}» (${formatWeekTime(conflict.start)}–${formatWeekTime(conflict.end)}). Выберите другое время.`;
+}
+
+function validateWeekEvent(record, ignoredEvent = null) {
+  if (!getSelectedWeek(displayedWeekDate).includes(record.date) || !isCalendarDate(record.date)) {
+    return t("Выберите действительную дату этой недели.");
+  }
+  const error = validateWeekEventFields(record, ignoredEvent || appliedWeekTemplate, weekTimeStep);
+  if (error) return error;
+  const conflict = weeklyEvents.find(event => event !== ignoredEvent && weekEventsOverlap(event, record));
+  return conflict ? weekOverlapMessage(record, conflict) : "";
+}
+
+function newWeeklyEvent(record) {
+  return { ...record, id: `created-${crypto.randomUUID()}`, day: weeklyDayKey(record.date) };
+}
+
+const planButton = document.querySelector("#import-monthly-plan");
+const planFile = document.querySelector("#monthly-plan-file");
+const planDialog = document.querySelector("#monthly-plan-dialog");
+const planList = document.querySelector("#monthly-plan-rows");
+const planSummary = document.querySelector("#monthly-plan-summary");
+const planError = document.querySelector("#monthly-plan-error");
+const planConfirm = document.querySelector("#confirm-monthly-plan");
+let planPreview = null;
+
+function validatePlanHeader(plan) {
+  if (plan?.format !== "my-calendar-monthly-plan" || plan.version !== 1) {
+    return t("Нужен JSON-файл my-calendar-monthly-plan версии 1.");
+  }
+  if (plan.timeZone !== "Europe/Berlin") return t("В плане должен быть указан часовой пояс Europe/Berlin.");
+  if (typeof plan.month !== "string" || !/^\d{4}-(0[1-9]|1[0-2])$/.test(plan.month) || plan.month.startsWith("0000")) {
+    return t("Укажите месяц в формате ГГГГ-ММ, год от 0001 до 9999.");
+  }
+  if (!Array.isArray(plan.events)) return t("Поле events должно быть массивом.");
+  return "";
+}
+
+function reviewPlanRow(input, month, repeatedIds) {
+  const row = { input, status: "invalid", selected: false };
+  if (typeof input?.sourceId !== "string" || !input.sourceId.trim()) {
+    row.reason = t("Укажите непустой строковый sourceId.");
+    return row;
+  }
+  const matches = weeklyEvents.filter(event => event.sourceId === input.sourceId);
+  if (repeatedIds.has(input.sourceId) || matches.length > 1) {
+    row.reason = t("sourceId встречается несколько раз в файле или календаре.");
+    return row;
+  }
+  const previous = matches[0];
+  row.previous = previous;
+  if (typeof input.date !== "string" || !input.date.startsWith(month + "-") || !isCalendarDate(input.date)) {
+    row.reason = t("Нужна действительная дата указанного месяца в формате ГГГГ-ММ-ДД.");
+    return row;
+  }
+  if (typeof input.title !== "string" || (Object.hasOwn(input, "description") && typeof input.description !== "string")) {
+    row.reason = t("Название и описание должны быть текстом.");
+    return row;
+  }
+  if (/[\r\n]/.test(input.title)) {
+    row.reason = t("Введите название в одну строку. Переводы строк можно использовать в описании.");
+    return row;
+  }
+  const record = {
+    ...(previous || { category: defaultWeekCategory(), colour: weeklyColours[0][0] }),
+    sourceId: input.sourceId, date: input.date, title: input.title, description: input.description ?? "",
+    start: parseWeekTime(input.start, false, 1), end: parseWeekTime(input.end, true, 1),
+  };
+  const error = validateWeekEventFields(record, previous);
+  if (error) {
+    row.reason = error;
+    return row;
+  }
+  row.record = record;
+  const sameSlotAndTitle = event => event.date === record.date && event.start === record.start
+    && event.end === record.end && event.title === record.title;
+  const alreadyPresent = previous
+    ? sameSlotAndTitle(previous) && (previous.description ?? "") === record.description
+    : weeklyEvents.some(event => !event.sourceId && sameSlotAndTitle(event));
+  if (alreadyPresent) {
+    row.status = "existing";
+    return row;
+  }
+  const conflict = weeklyEvents.find(event => event !== previous && weekEventsOverlap(event, record));
+  if (conflict) {
+    row.status = "conflict";
+    row.reason = weekOverlapMessage(record, conflict);
+  } else {
+    row.status = previous ? "changed" : "new";
+    row.selected = !previous;
+  }
+  return row;
+}
+
+function reviewMonthlyPlan(plan) {
+  const ids = new Set();
+  const repeated = new Set();
+  for (const input of plan.events) {
+    const id = input?.sourceId;
+    if (typeof id !== "string") continue;
+    if (ids.has(id)) repeated.add(id);
+    ids.add(id);
+  }
+  const rows = plan.events.map(input => reviewPlanRow(input, plan.month, repeated));
+  // Mark both sides of an overlap, independently of file order.
+  const timed = rows.filter(row => row.record).sort((a, b) =>
+    a.record.date.localeCompare(b.record.date) || a.record.start - b.record.start);
+  let longest;
+  for (const row of timed) {
+    if (longest && weekEventsOverlap(row.record, longest.record)) {
+      for (const [item, other] of [[row, longest], [longest, row]]) {
+        if (item.status !== "existing") item.status = "conflict";
+        item.selected = false;
+        item.reason = t`Пересечение внутри файла с записью ${other.record.sourceId}.`;
+      }
+      if (row.record.end > longest.record.end) longest = row;
+    } else longest = row;
+  }
+  return rows;
+}
+
+function updatePlanConfirmation() {
+  const count = planPreview.rows.filter(row => row.selected).length;
+  planConfirm.disabled = count === 0;
+  planConfirm.textContent = t`Применить (${count})`;
+}
+
+function renderPlanRow(row) {
+  const item = document.createElement("li");
+  const statuses = { new: "Новое", existing: "Уже добавлено", changed: "Изменено", conflict: "Конфликт", invalid: "Некорректная запись" };
+  const heading = document.createElement("strong");
+  heading.textContent = [t(statuses[row.status]), row.input?.sourceId].filter(value => typeof value === "string").join(" · ");
+  item.append(heading);
+  function line(text) {
+    const p = document.createElement("p");
+    p.textContent = text;
+    item.append(p);
+  }
+  if (row.previous && row.status !== "existing") {
+    const old = row.previous;
+    line(t`Сохранено: ${formatDate(old.date)} · ${formatWeekTime(old.start)}–${formatWeekTime(old.end)} · ${old.title}\n${old.description ?? ""}`);
+  }
+  const input = row.input || {};
+  const text = value => typeof value === "string" ? value : "—";
+  const date = row.record ? formatDate(row.record.date) : text(input.date);
+  line(t`В файле: ${date} · ${text(input.start)}–${text(input.end)} · ${text(input.title)}\n${text(input.description ?? "")}`);
+  if (row.reason) line(row.reason);
+  if (row.status === "changed") {
+    const label = document.createElement("label");
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.addEventListener("change", () => {
+      row.selected = checkbox.checked;
+      updatePlanConfirmation();
+    });
+    label.append(checkbox, " ", t`Заменить запись ${input.sourceId}`);
+    item.append(label);
+  }
+  return item;
+}
+
+planButton.addEventListener("click", () => planFile.click());
+planFile.addEventListener("change", async () => {
+  const file = planFile.files[0];
+  planFile.value = "";
+  if (!file || activeDialog || weekView.hidden || restoreNeedsReload) return;
+  const preview = { snapshot: weeklyStorageSnapshot, rows: [] };
+  planPreview = preview;
+  planList.replaceChildren();
+  showEventStorageError(planError);
+  updatePlanConfirmation();
+  planSummary.textContent = t("Чтение и проверка файла…");
+  openDialog(planDialog, planButton, document.querySelector("#cancel-monthly-plan"));
+  let content;
+  try { content = await file.text(); }
+  catch { /* Report the read failure only if this preview is still open. */ }
+  if (planPreview !== preview) return;
+  planSummary.textContent = file.name;
+  try {
+    if (content === undefined) throw new CalendarStorageError(t("Не удалось прочитать файл. Выберите его ещё раз."));
+    let plan;
+    try { plan = JSON.parse(content); }
+    catch { throw new CalendarStorageError(t("Файл не содержит корректный JSON.")); }
+    const error = validatePlanHeader(plan);
+    if (error) throw new CalendarStorageError(error);
+    checkPlanSnapshot(preview);
+    preview.rows = reviewMonthlyPlan(plan);
+    planSummary.textContent = t`Месяц: ${plan.month}. Записей в файле: ${preview.rows.length}. Новые будут добавлены. Для замены отметьте изменённую запись.`;
+    for (const row of preview.rows) planList.append(renderPlanRow(row));
+    updatePlanConfirmation();
+  } catch (error) { showEventStorageError(planError, storageErrorMessage(error)); }
+});
+
+function checkPlanSnapshot(preview) {
+  if (weeklyStorageBlocked) throw new CalendarStorageError(weekLoadError.textContent);
+  if (preview.snapshot !== weeklyStorageSnapshot || localStorage.getItem(weeklyEventStorageKey) !== preview.snapshot) {
+    throw new CalendarStorageError(t("Недельные события изменились. Закройте предпросмотр, перезагрузите страницу и выберите файл снова."));
+  }
+  checkWeeklyCategories();
+}
+
+planConfirm.addEventListener("click", () => {
+  if (activeDialog !== planDialog || !planPreview || planConfirm.disabled) return;
+  try { checkPlanSnapshot(planPreview); }
+  catch (error) { showEventStorageError(planError, storageErrorMessage(error)); return; }
+  const replacements = new Map();
+  const additions = [];
+  for (const { selected, record, previous } of planPreview.rows) {
+    if (!selected) continue;
+    if (previous) replacements.set(previous, { ...record, day: weeklyDayKey(record.date) });
+    else additions.push(newWeeklyEvent(record));
+  }
+  const next = weeklyEvents.map(event => replacements.get(event) || event).concat(additions);
+  if (!saveWeeklyEvents(next, planError)) return;
+  renderWeekEvents();
+  closeDialog();
+});
 
 function submitWeekEvent(event) {
   event.preventDefault();
@@ -2867,8 +3089,8 @@ function submitWeekEvent(event) {
   catch (error) { showEventStorageError(weekEventError, storageErrorMessage(error)); return; }
   const updatedEvent = editedEvent
     ? { ...editedEvent, ...record }
-    : { id: `created-${crypto.randomUUID()}`, ...record };
-  if (!editedEvent || Object.hasOwn(editedEvent, "day")) updatedEvent.day = weeklyDayKey(record.date);
+    : newWeeklyEvent(record);
+  if (editedEvent && Object.hasOwn(editedEvent, "day")) updatedEvent.day = weeklyDayKey(record.date);
   const nextEvents = editedEvent
     ? weeklyEvents.map((item) => item === editedEvent ? updatedEvent : item)
     : [...weeklyEvents, updatedEvent];
@@ -3278,6 +3500,7 @@ function restoreDialogFocus() {
 
 function closeDialog() {
   if (restoreNeedsReload) return;
+  planPreview = null;
   backupReadToken += 1;
   pendingRestore = null;
   if (!activeDialog) return;
@@ -3980,7 +4203,7 @@ backupFile.addEventListener("change", prepareBackupRestore);
 restoreConfirm.addEventListener("click", confirmBackupRestore);
 document.querySelector("#reload-after-restore").addEventListener("click", () => window.location.reload());
 
-for (const dialog of [creationDialog, cardDialog, listDialog, filtersDialog, thoughtDialog, thoughtDeleteDialog, historyDeleteDialog, settingsDialog, dayEraseDialog, templatesDialog, templateDialog, templateDeleteDialog, templateFutureDialog, restoreDialog, weekEventDialog, weekDeleteDialog, weekSettingsDialog, categoryDialog, categoryDeleteDialog]) {
+for (const dialog of [creationDialog, cardDialog, listDialog, filtersDialog, thoughtDialog, thoughtDeleteDialog, historyDeleteDialog, settingsDialog, dayEraseDialog, templatesDialog, templateDialog, templateDeleteDialog, templateFutureDialog, restoreDialog, weekEventDialog, weekDeleteDialog, weekSettingsDialog, categoryDialog, categoryDeleteDialog, planDialog]) {
   dialog.addEventListener("click", (event) => {
     if (event.target === dialog || event.target.closest("[data-close-dialog]")) dismissDialog();
     else if (event.target.closest("[data-back-to-list]")) returnToDayList();

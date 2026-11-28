@@ -72,6 +72,25 @@ Click **Неделя** / **Woche** beside the yearly heading to open the current
 - Events on the same date may touch but cannot overlap. With a 15-minute step, an event following 09:00–10:00 can start at 10:00. Starting it at 09:45 would overlap. The end must be later than the start and may be as late as 24:00.
 - Click a card or focus it and press Enter to edit its title, date within the displayed week, times, category, colour, or optional description. **Сохранить изменения** checks the interval against the other events. **Отмена** discards the draft. To delete the event, choose **Удалить**, check the saved title, date, and interval, then confirm with **Удалить**. Cancelling the confirmation returns to your draft.
 
+### Import a monthly plan
+
+1. Open any week, choose **Plan importieren** / **Импорт плана**, and select one JSON file. It can cover the whole month, including weeks outside the current view.
+2. Review the dates, times, titles, and results. New entries are ready to add. If an imported lesson has changed, compare the saved and proposed versions and tick its replacement checkbox to accept the change. Conflicting or invalid rows show a reason and are skipped.
+3. Choose **Übernehmen** / **Применить** to save the indicated number of entries together. Cancelling leaves the calendar unchanged. If another tab changed the weekly collection, reload and review the file again.
+
+Copy the [December 2026 example](examples/monthly-plan-2026-12.json) to prepare a plan. Save it as UTF-8 JSON with `format` set to `"my-calendar-monthly-plan"`, numeric `version` set to `1`, and `timeZone` set to `"Europe/Berlin"`. Set `month` to `YYYY-MM` (years 0001–9999) and supply an `events` array. Each entry has these fields.
+
+| Field | What to enter |
+|---|---|
+| `sourceId` | A unique, nonblank, case-sensitive string for this occurrence. Give separate lessons separate IDs. Keep the same ID when moving or revising a lesson, even across months. |
+| `date` | A valid date in the file's month, written as `YYYY-MM-DD`. |
+| `start`, `end` | Berlin wall-clock times on that date, written as `HH:MM`. The end must be later on the same day. Only the end can be `24:00`. Times retain minute precision in every browser time zone and at either grid step. |
+| `title`, `description` | Plain text in the original language. A nonblank, single-line title is required (up to 60 characters for a new event). The optional description can span several lines (up to 240 characters) and defaults to an empty string. |
+
+New entries use the same initial category and blue colour as the event form. Reimporting an unchanged lesson skips it. An existing manual event with the same date, start, end and title is also left untouched. An accepted replacement keeps the event's internal ID, colour, category and additional fields. Omitting a lesson from a file leaves its saved event in place.
+
+Intervals may touch. Overlapping entries within a file are flagged on both sides. A move is checked against the saved calendar, excluding only the event being moved. If another event still occupies the destination, free the slot and review the file again.
+
 ### Choose categories and reuse templates
 
 Choose **Категория** and **Цвет** independently. The initial categories are **Учёба**, **Работа**, **Проект**, **Личное**, and **Финансы**. New events start in blue with **Учёба** selected, falling back to the first available category or **Без категории**.

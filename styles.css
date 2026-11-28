@@ -510,6 +510,11 @@ h1 {
 .yearly-field textarea { min-height: 88px; padding: 10px; resize: vertical; }
 .yearly-fixed-date { margin: 0; padding: 10px 11px; color: #4c5b70; border: 1px solid #dfe6f3; border-radius: 8px; background: #f5f8ff; font-size: 12px; line-height: 1.4; }
 .day-dialog-footer { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 9px; margin-top: 20px; }
+#monthly-plan-dialog .day-dialog { display: flex; flex-direction: column; }
+#monthly-plan-rows { overflow: auto; min-height: 0; padding-left: 1.7em; margin: 0; }
+#monthly-plan-rows li { padding: 8px 0; border-bottom: 1px solid #dce2ea; white-space: pre-wrap; overflow-wrap: anywhere; }
+#monthly-plan-rows p { margin: 4px 0; }
+#monthly-plan-rows label { display: block; font-weight: 600; cursor: pointer; }
 .day-secondary,
 .day-primary { min-height: 36px; padding: 0 14px; border-radius: 8px; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
 .day-secondary { color: #465365; border: 1px solid #d7dee8; background: #fff; }
@@ -547,7 +552,7 @@ h1 {
 .future-event-row .day-event-copy { display: grid; min-width: 0; flex: 1; gap: 3px; }
 .future-event-row .day-event-name { font-weight: 600; }
 .future-event-row .day-event-description { overflow: visible; white-space: pre-wrap; overflow-wrap: anywhere; }
-#apply-template-future:disabled { opacity: 0.5; cursor: default; }
+#apply-template-future:disabled, #confirm-monthly-plan:disabled { opacity: 0.5; cursor: default; }
 
 .event-card-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 17px; }
 .event-card-action { min-height: 38px; padding: 0 10px; color: #3d4a5d; border: 1px solid #d9e0e9; border-radius: 8px; background: #fff; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
